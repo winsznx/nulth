@@ -1,0 +1,29 @@
+name: Build & release contracts
+
+# Reproducible Soroban builds for Stellar Expert source validation.
+# Tag a release (e.g. `git tag v0.1.0 && git push origin v0.1.0`) to trigger.
+# The workflow builds each contract in a pinned environment, attaches the WASM +
+# SHA-256 + build attestation to the GitHub release, and registers it with
+# stellar.expert so any on-chain deployment of a matching hash shows "verified".
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
+jobs:
+  account:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: 'Nulth account — proof-authorized Soroban smart account'
+      relative_path: '["contracts"]'
+      package: 'covenant-account'
+      home_domain: 'nulth.xyz'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
