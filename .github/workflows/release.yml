@@ -22,7 +22,7 @@ jobs:
     with:
       release_name: ${{ github.ref_name }}
       release_description: 'Nulth account — proof-authorized Soroban smart account'
-      relative_path: '["contracts"]'
+      relative_path: 'contracts'
       package: 'covenant-account'
       home_domain: 'nulth.xyz'
     secrets:
