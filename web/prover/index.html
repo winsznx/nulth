@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Covenant — DEPTH-16 in-browser prover</title>
+  <style>body{font:14px/1.5 ui-monospace,monospace;margin:2rem;max-width:60rem}pre{background:#111;color:#0f0;padding:1rem;white-space:pre-wrap;border-radius:8px}button{font:inherit;padding:.6rem 1rem}</style>
+</head>
+<body>
+  <h1>Covenant — client-side DEPTH-16 Groth16 proving</h1>
+  <p>Private inputs (cap, salt, allowlist path) never leave this browser. snarkjs runs the
+     65,536-slot policy circuit and emits a <code>ProofSig</code> entirely client-side — the seed of the §14 zero-terminal prover.</p>
+  <button id="run">Generate proof in browser</button>
+  <pre id="out">idle — click the button (or it auto-runs in ~0.3s).</pre>
+  <script src="snarkjs.min.js"></script>
+  <script>
+    const out = document.getElementById('out');
+    const log = (m) => { out.textContent += '\n' + m; };
+    const fetchJSON = async (u) => (await fetch(u)).json();
+    async function run() {
+      try {
+        out.textContent = 'loading wasm + zkey (one-time download)…';
+        const input = await fetchJSON('input.json');
+        const vk = await fetchJSON('verification_key.json');
+        out.textContent = 'proving (DEPTH-16, ~9,402 constraints)…';
+        const t0 = performance.now();
+        const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, 'policy.wasm', 'policy_final.zkey');
+        const t1 = performance.now();
+        const ok = await snarkjs.groth16.verify(vk, publicSignals, proof);
+        const ms = Math.round(t1 - t0);
+        const heap = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB jsHeap' : 'n/a';
+        out.textContent = '';
+        log('✅ proof generated CLIENT-SIDE');
+        log('time:   ' + ms + ' ms');
+        log('verify: ' + ok);
+        log('memory: ' + heap);
+        log('public: ' + JSON.stringify(publicSignals));
+        window.__COVENANT_RESULT__ = { ms, ok, heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null };
+        document.title = 'DONE ' + ms + 'ms';
+      } catch (e) {
+        out.textContent = 'ERROR: ' + (e && e.message ? e.message : e);
+        window.__COVENANT_RESULT__ = { error: String(e && e.message ? e.message : e) };
+        document.title = 'ERROR';
+      }
+    }
+    document.getElementById('run').onclick = run;
+    window.addEventListener('load', () => setTimeout(run, 300));
+  </script>
+</body>
+</html>

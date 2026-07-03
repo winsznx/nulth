@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nulth — private controls for public money</title>
+<link rel="icon" type="image/png" href="./logo_mark.png">
+<meta name="description" content="Nulth is a Stellar smart account whose only spending authorization is a zero-knowledge proof — private controls for public money. Your spending rules stay private; every payment stays verifiable.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nulth.xyz">
+<meta property="og:title" content="Nulth — private controls for public money">
+<meta property="og:description" content="A Stellar smart account authorized only by a zero-knowledge proof. Your spending rules stay private; every payment stays verifiable.">
+<meta property="og:image" content="https://nulth.xyz/og.png">
+<meta property="og:image:width" content="1731">
+<meta property="og:image:height" content="909">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Nulth — private controls for public money">
+<meta name="twitter:description" content="A Stellar smart account authorized only by a zero-knowledge proof.">
+<meta name="twitter:image" content="https://nulth.xyz/og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;450;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html{margin:0;padding:0;overflow-y:scroll}
+  body{margin:0;padding:0}
+  body{font-family:'Geist',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;color:#111111;background:#fafafa}
+  ::selection{background:#0E9466;color:#fff}
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:8px;border:3px solid transparent;background-clip:content-box}
+  *::-webkit-scrollbar-thumb:hover{background:#a1a1aa;background-clip:content-box}
+  .cv-mono{font-family:'Geist Mono','SF Mono',ui-monospace,monospace;font-feature-settings:"tnum" 1,"zero" 1;overflow-wrap:anywhere}
+  input,textarea{max-width:100%;box-sizing:border-box}
+  /* affordance: everything clickable shows a pointer + a subtle hover so you can feel it's interactive */
+  [data-act]{cursor:pointer}
+  [data-act],a[href],button{transition:opacity .14s ease,filter .14s ease,background-color .14s ease,border-color .14s ease,color .14s ease}
+  [data-act]:hover,a[href]:hover,button:not(:disabled):hover{opacity:.82}
+  a[href]:hover{text-decoration:underline}
+  /* hand-drawn green underline accent (Nulth motif) — scales with font-size */
+  .cv-wave{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='12' viewBox='0 0 48 12'%3E%3Cpath d='M1 7 Q7 1 13 7 T25 7 T37 7 T49 7' fill='none' stroke='%230E9466' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:repeat-x;background-position:left bottom;background-size:auto .2em;padding-bottom:.14em}
+  button{font-family:inherit}
+  @keyframes cvPulse{0%,100%{opacity:1}50%{opacity:.3}}
+  @keyframes cvRing{to{transform:rotate(360deg)}}
+  @keyframes cvBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  @keyframes cvRise{from{opacity:0}to{opacity:1}}
+  @keyframes cvDrift{from{transform:translateX(-130%)}to{transform:translateX(130%)}}
+  @keyframes cvScan{0%{transform:translateY(-100%)}100%{transform:translateY(2400%)}}
+  @keyframes cvGlow{0%,100%{box-shadow:0 0 0 0 rgba(16,192,136,.45)}70%{box-shadow:0 0 0 7px rgba(16,192,136,0)}}
+  @keyframes cvShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+  #root.cv-navd .cv-rise{animation:cvRise .5s cubic-bezier(.22,.61,.36,1) both}
+  input[type=range]{accent-color:#0E9466}
+  .cv-cs-chip:hover{border-color:#0E9466 !important;color:#0E9466 !important}
+  @media (max-width:940px){ .cv-hero-grid{grid-template-columns:1fr !important;gap:40px !important} }
+  /* ---- mobile responsiveness ---- */
+  @media (max-width:860px){
+    .cv-sidebar{display:none !important}
+    .cv-navlinks,.cv-navcta{display:none !important}
+    .cv-burger{display:inline-flex !important}
+    [style*="grid-template-columns"]{grid-template-columns:1fr !important; gap:18px !important}
+    [style*="grid-template-columns"] > *{min-width:0 !important}
+    .cv-cmdbar{padding:0 16px !important}
+    .cv-cmdsub{display:none !important}
+    /* smooth mobile scroll: backdrop-filter on a sticky bar repaints every frame (janky). Solid bg instead. */
+    .cv-cmdbar{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;background:#fff !important}
+    .cv-main{overflow:visible !important}
+    #cv-nav{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;background:#fff !important}
+    #cv-nav-inner{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;background:transparent !important;box-shadow:none !important}
+    .cv-h1{font-size:34px !important; line-height:1.12 !important}
+    .cv-h2{font-size:26px !important}
+    .cv-bignum{font-size:42px !important}
+    .cv-pad32{padding-left:18px !important; padding-right:18px !important}
+    .cv-hero-grid{padding:0 !important}
+  }
+  @media (max-width:480px){
+    .cv-h1{font-size:29px !important}
+  }
+  @media (max-width:880px){ .cv-showcase-grid{grid-template-columns:1fr !important;gap:24px !important} .cv-cs-cell{height:400px !important} #cv-cardswap{transform:scale(.72)} }
+  @media (max-width:480px){ #cv-cardswap{transform:scale(.56)} }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="./lib/freighter-api.js"></script>
+<script src="./lib/buffer.bundle.js"></script>
+<script src="./lib/stellar-sdk.min.js"></script>
+<script src="./lib/gsap.min.js"></script>
+<script src="./prover/snarkjs.min.js"></script>
+<script src="./config.js"></script>
+<script src="./secrets.local.js" onerror="console.info('secrets.local.js absent — read-only mode')"></script>
+<script src="./lib/serialize.js"></script>
+<script src="./lib/poseidon.js"></script>
+<script src="./lib/prover.js"></script>
+<script src="./lib/wallet.js"></script>
+<script src="./lib/chain.js"></script>
+<script src="./lib/create.js"></script>
+<script src="./lib/attacks.js"></script>
+<script src="./lib/cardswap.js"></script>
+<script src="./lib/staggered-menu.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
