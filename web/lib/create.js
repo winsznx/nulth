@@ -121,8 +121,13 @@
   async function importKeystore(json, passphrase) {
     const ks = typeof json === 'string' ? JSON.parse(json) : json;
     if (!ks.account || !ks.commitment) throw new Error('invalid keystore');
-    if (ks.enc) { const full = await unlock(ks, passphrase); saveLocal(ks); saveUnlocked(full); return full; }
-    saveLocal(ks); saveUnlocked(ks); return ks; // legacy plaintext keystore
+    // validate every address in an imported keystore so a hostile file can't smuggle markup into the UI
+    const S = window.StellarSdk;
+    const okAddr = (a) => typeof a === 'string' && (!S || S.StrKey.isValidEd25519PublicKey(a) || S.StrKey.isValidContract(a));
+    if (S && !S.StrKey.isValidContract(ks.account)) throw new Error('invalid keystore: bad account id');
+    const checkMembers = (arr) => { if (Array.isArray(arr)) for (const m of arr) if (!m || !okAddr(m.address)) throw new Error('invalid keystore: bad allowlist address'); };
+    if (ks.enc) { const full = await unlock(ks, passphrase); checkMembers(full.members); saveLocal(ks); saveUnlocked(full); return full; }
+    checkMembers(ks.members); saveLocal(ks); saveUnlocked(ks); return ks; // legacy plaintext keystore
   }
   function download(encKs) {
     const blob = new Blob([JSON.stringify(encKs, null, 2)], { type: 'application/json' });

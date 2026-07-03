@@ -13,6 +13,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 import * as SDK from '@stellar/stellar-sdk';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,19 +42,57 @@ const DEMO_PAYEE = process.env.DEMO_PAYEE || 'GBEOVHEZI2PS6OMLKZFULUXFSG5ZN3YAKU
 const DEMO_NONALLOW = process.env.DEMO_NONALLOWLISTED || 'GCES7J7AFTPOM7LRFI5FCE3PRWFCOU56IBPLQY7O2TM3YSTA3G2FLEJ3';
 const ATTACK_DESTS = new Set([DEMO_PAYEE, DEMO_NONALLOW]);
 
-// ---- tiny in-memory rate limiter (per IP, sliding window) ----
+// ---- tiny in-memory rate limiter (per real client IP, sliding window) ----
 const HITS = new Map();
 function rateLimited(ip, max = 20, windowMs = 60_000) {
   const now = Date.now();
+  if (HITS.size > 10_000) { for (const [k, v] of HITS) { if (!v.some((t) => now - t < windowMs)) HITS.delete(k); } } // evict expired so a spoof/flood can't grow the map unbounded
   const arr = (HITS.get(ip) || []).filter((t) => now - t < windowMs);
   arr.push(now);
   HITS.set(ip, arr);
   return arr.length > max;
 }
+// Real client IP behind Railway's proxy. Prefer Envoy's trusted external address; else the LAST
+// X-Forwarded-For hop (appended by the trusted proxy) — never the client-supplied first hop, which
+// is spoofable and would let anyone bypass rate limits.
+function clientIp(req) {
+  const env = req.headers['x-envoy-external-address'];
+  if (env) return String(env).split(',')[0].trim();
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (xff.length) return xff[xff.length - 1];
+  return String(req.socket.remoteAddress || '');
+}
+
+// ---- CORS (same-origin only) + security headers ----
+const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+function siteOrigins(req) {
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  const list = [...ALLOWED_ORIGINS];
+  if (host) list.push('https://' + host, 'http://' + host);
+  return list;
+}
+function corsOrigin(req) { const o = req.headers.origin; return o && siteOrigins(req).includes(o) ? o : null; }
+// A cross-origin browser POST carries an Origin the site doesn't own -> reject. Same-origin app calls
+// (Origin == our host, or no Origin) pass. Direct non-browser calls (no Origin) pass but are rate-limited.
+function originAllowed(req) { const o = req.headers.origin; return !o || siteOrigins(req).includes(o); }
+function safeEqual(a, b) { const ba = Buffer.from(String(a)), bb = Buffer.from(String(b)); return ba.length === bb.length && crypto.timingSafeEqual(ba, bb); }
+const SEC_HEADERS = {
+  'x-frame-options': 'DENY',
+  'content-security-policy': "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'permissions-policy': 'geolocation=(), microphone=(), camera=(), payment=()',
+};
 
 // ---- helpers ----
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.map': 'application/json' };
-function send(res, code, body, headers = {}) { res.writeHead(code, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type', ...headers }); res.end(body); }
+function send(res, code, body, headers = {}) {
+  const h = { ...SEC_HEADERS, 'access-control-allow-headers': 'content-type, authorization', ...headers };
+  if (res._cors) h['access-control-allow-origin'] = res._cors; // reflect only same-origin; cross-origin gets no ACAO
+  res.writeHead(code, h);
+  res.end(body);
+}
 function json(res, code, obj) { send(res, code, JSON.stringify(obj), { 'content-type': 'application/json' }); }
 function readBody(req) { return new Promise((resolve) => { let d = ''; req.on('data', (c) => { d += c; if (d.length > 1e6) req.destroy(); }); req.on('end', () => resolve(d)); }); }
 async function settle(hash) { let f; for (let i = 0; i < 30; i++) { await sleep(2000); try { f = await rpc.getTransaction(hash); } catch { continue; } if (f.status !== 'NOT_FOUND') break; } return f; }
@@ -209,7 +248,8 @@ async function handleWaitlist(req, res, ip) {
   try { body = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: 'bad_json' }); }
   const email = String((body && body.email) || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) return json(res, 400, { error: 'bad_email' });
-  const rec = JSON.stringify({ email, ts: new Date().toISOString(), ref: (body && body.ref) || null }) + '\n';
+  const ref = body && body.ref != null ? String(body.ref).slice(0, 120) : null; // cap so a large ref can't bloat the sink
+  const rec = JSON.stringify({ email, ts: new Date().toISOString(), ref }) + '\n';
   let persisted = false;
   try { fs.mkdirSync(path.dirname(WAITLIST_FILE), { recursive: true }); fs.appendFileSync(WAITLIST_FILE, rec); persisted = true; }
   catch (e) { console.warn('[waitlist] durable write failed:', String(e && e.message || e).split('\n')[0]); }
@@ -219,9 +259,13 @@ async function handleWaitlist(req, res, ip) {
 }
 
 // ---- GET /api/waitlist/export?key=... : protected download of captured leads ----
-function handleWaitlistExport(req, res) {
-  const key = new URL(req.url, 'http://x').searchParams.get('key');
-  if (!process.env.WAITLIST_EXPORT_KEY || key !== process.env.WAITLIST_EXPORT_KEY) return send(res, 403, 'forbidden');
+function handleWaitlistExport(req, res, ip) {
+  if (rateLimited(ip, 10)) return send(res, 429, 'rate_limited');
+  const auth = String(req.headers['authorization'] || '');
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const key = bearer || new URL(req.url, 'http://x').searchParams.get('key') || ''; // header preferred; ?key= kept for back-compat
+  const expected = process.env.WAITLIST_EXPORT_KEY || '';
+  if (!expected || !safeEqual(key, expected)) return send(res, 403, 'forbidden');
   let data = ''; try { data = fs.readFileSync(WAITLIST_FILE, 'utf8'); } catch { /* empty */ }
   const count = data ? data.trim().split('\n').filter(Boolean).length : 0;
   return send(res, 200, data, { 'content-type': 'text/plain; charset=utf-8', 'x-waitlist-count': String(count) });
@@ -229,7 +273,8 @@ function handleWaitlistExport(req, res) {
 
 // ---- static file serving (web/) with SPA-friendly fallback to index.html ----
 function serveStatic(req, res) {
-  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  let urlPath;
+  try { urlPath = decodeURIComponent((req.url || '/').split('?')[0]); } catch { return send(res, 400, 'bad request'); } // malformed %-encoding -> 400, not a thrown 502
   let rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
   let file = path.join(WEB_ROOT, rel);
   if (!file.startsWith(WEB_ROOT)) return send(res, 403, 'forbidden'); // path traversal guard
@@ -273,22 +318,33 @@ async function sweepDemo() {
 }
 
 const server = http.createServer(async (req, res) => {
-  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
-  if (req.method === 'OPTIONS') return send(res, 204, '');
-  if (req.url === '/api/health') return json(res, 200, { ok: true, network: PASS === SDK.Networks.TESTNET ? 'testnet' : 'custom', relayer: feePayer ? feePayer.publicKey() : null, usdc: USDC_SAC, agent: process.env.GROQ_API_KEY ? 'groq' : 'fallback' });
-  if (req.method === 'POST' && req.url === '/api/relay') return handleRelay(req, res, ip);
-  if (req.method === 'POST' && req.url === '/api/attack') return handleAttack(req, res, ip);
-  if (req.method === 'POST' && req.url === '/api/agent') return handleAgent(req, res, ip);
-  if (req.method === 'POST' && req.url === '/api/waitlist') return handleWaitlist(req, res, ip);
-  if (req.method === 'GET' && req.url.startsWith('/api/waitlist/export')) return handleWaitlistExport(req, res);
-  // demo policy secret is served from an env var in production (never committed / never in the repo);
-  // local dev falls through to the on-disk file under web/.
-  if (req.method === 'GET' && req.url === '/policy_secret.json' && process.env.DEMO_POLICY_SECRET) {
-    return send(res, 200, process.env.DEMO_POLICY_SECRET, { 'content-type': 'application/json' });
+  try {
+    res._cors = corsOrigin(req); // reflect ACAO only for our own origin
+    const ip = clientIp(req);
+    if (req.method === 'OPTIONS') return send(res, 204, '', { 'access-control-allow-methods': 'GET, POST, OPTIONS' });
+    // a cross-origin browser POST carries a foreign Origin -> refuse (same-origin app + non-browser clients pass)
+    if (req.method === 'POST' && req.url.startsWith('/api/') && !originAllowed(req)) return json(res, 403, { error: 'forbidden_origin' });
+    if (req.url === '/api/health') return json(res, 200, { ok: true, network: PASS === SDK.Networks.TESTNET ? 'testnet' : 'custom', relayer: feePayer ? feePayer.publicKey() : null, usdc: USDC_SAC, agent: process.env.GROQ_API_KEY ? 'groq' : 'fallback' });
+    if (req.method === 'POST' && req.url === '/api/relay') return handleRelay(req, res, ip);
+    if (req.method === 'POST' && req.url === '/api/attack') return handleAttack(req, res, ip);
+    if (req.method === 'POST' && req.url === '/api/agent') return handleAgent(req, res, ip);
+    if (req.method === 'POST' && req.url === '/api/waitlist') return handleWaitlist(req, res, ip);
+    if (req.method === 'GET' && req.url.startsWith('/api/waitlist/export')) return handleWaitlistExport(req, res, ip);
+    // demo policy secret is served from an env var in production (never committed / never in the repo);
+    // local dev falls through to the on-disk file under web/.
+    if (req.method === 'GET' && req.url === '/policy_secret.json' && process.env.DEMO_POLICY_SECRET) {
+      return send(res, 200, process.env.DEMO_POLICY_SECRET, { 'content-type': 'application/json' });
+    }
+    if (req.method === 'GET') return serveStatic(req, res);
+    return send(res, 404, 'not found');
+  } catch (e) {
+    console.error('[request]', String(e && e.message || e).split('\n')[0]);
+    try { return json(res, 500, { error: 'server_error' }); } catch { /* headers already sent */ }
   }
-  if (req.method === 'GET') return serveStatic(req, res);
-  return send(res, 404, 'not found');
 });
+// keep the process alive on an unexpected throw instead of crash-looping on malformed input
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', String(e && e.message || e).split('\n')[0]));
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', String(e && e.message || e).split('\n')[0]));
 
 server.listen(PORT, () => {
   console.log(`nulth server on :${PORT} · web=${WEB_ROOT} · relayer=${feePayer ? feePayer.publicKey() : 'DISABLED (set FEE_PAYER_SECRET)'} · rpc=${RPC_URL}`);
