@@ -1,0 +1,27 @@
+node_modules/
+contracts/target/
+**/*.ptau
+**/*.zkey
+**/*.wtns
+circuits/build/
+web/.shots/
+.DS_Store
+*.log
+
+# build/deploy logs, ids, and manifests (internal run records)
+build/
+web/policy_secret.json
+web/secrets.local.js
+
+# user policy keystores (spending secrets — never commit)
+*.keystore.json
+
+# private: strategy, PRDs, positioning, competitive intel, build logs, transcripts
+internal/
+
+# relayer/waitlist runtime data
+data/
+waitlist.jsonl
+.claude
+.codex
+.stellar
