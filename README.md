@@ -8,7 +8,7 @@ Nulth is a proof-authorized Stellar account: it can only spend if it proves, in 
 
 > **No Ed25519 spending key.** The proof *is* the spend authorization — there is no key to phish or extract. Funds move only by proving compliance with a policy the chain never sees; the spend cap and the allowlist are never published (only one Poseidon commitment + one Merkle root touch the ledger). The admin is *governance* (rotate/freeze), not payment authorization. **Nulth hides the rules, not the payments** — amount and destination are public like any Stellar payment.
 
-> Where Nulth sits in Stellar's privacy stack: **Confidential Tokens hide the amounts; Nulth hides the rules.** They compose.  ·  Live at [nulth.xyz](https://nulth.xyz)  ·  *(formerly Covenant)*
+> Where Nulth sits in Stellar's privacy stack: **Confidential Tokens hide the amounts; Nulth hides the rules.** They compose.  ·  Live at [nulth.xyz](https://nulth.xyz)
 
 ---
 
@@ -73,6 +73,16 @@ Full matrix with tx hashes: [ADVERSARIAL_TESTING.md](./ADVERSARIAL_TESTING.md).
 
 ---
 
+## Reproducible builds & verification
+
+Every contract builds reproducibly, so anyone can confirm the on-chain bytes came from this source:
+
+- **Deterministic build** — the account contract source rebuilds its on-chain WASM hash *byte-for-byte* (`stellar contract build`; rustc 1.94 · stellar-cli 25 · soroban-sdk 26.1.0).
+- **CI provenance** — [`.github/workflows/release.yml`](./.github/workflows/release.yml) uses Stellar Expert's `soroban-build-workflow`: on each `v*` tag it builds each contract in a pinned environment, publishes the WASM + SHA-256 as a GitHub release, registers the build with stellar.expert, and attaches a [SLSA](https://slsa.dev) build attestation to the Rekor transparency log.
+- **Verified on mainnet from day one** — the post-audit mainnet deployment is cut straight from the release artifact, so its on-chain hash matches the registered build and stellar.expert shows a green *verified* badge linking back to this repository.
+
+---
+
 ## Why this is novel
 
 Nulth uses a ZK proof as the **sole** authorization mechanism — the proof *is* the account's signature, verified in `__check_auth`. We haven't found another Stellar account where the proof itself replaces the spending signature; others put ZK elsewhere:
@@ -99,7 +109,7 @@ Nulth makes the smart account the hero, ZK load-bearing from the first byte, and
 ```
 OFF-CHAIN (operator / agent)                   ON-CHAIN (Soroban)
 ─────────────────────────────                  ──────────────────
-policy = { cap, allowlist[], salt }            CovenantAccount (DEPTH-16, BN254)
+policy = { cap, allowlist[], salt }            Nulth account (DEPTH-16, BN254)
                                                  storage: vk, policy_commitment,
 per payment (amount, dest):                               allowlist_root, token,
   1. Web Worker: snarkjs.fullProve                        admin, frozen
