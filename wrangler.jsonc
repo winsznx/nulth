@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "nulth",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-06-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./web",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/policy_secret.json", "/secrets.local.js", "/secrets.example.js"]
+  },
+  "kv_namespaces": [
+    { "binding": "WAITLIST", "id": "41d5b64139734210b0b54a9a3ed10908" }
+  ],
+  "vars": {
+    "RPC_URL": "https://soroban-testnet.stellar.org",
+    "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+    "USDC_SAC": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "NULTH_ACCOUNT": "CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE",
+    "XLM_SAC": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    "DEMO_PAYEE": "GBEOVHEZI2PS6OMLKZFULUXFSG5ZN3YAKUJE7UV3B7ACJVIXDA2UU4BS",
+    "DEMO_NONALLOWLISTED": "GCES7J7AFTPOM7LRFI5FCE3PRWFCOU56IBPLQY7O2TM3YSTA3G2FLEJ3",
+    "GROQ_MODEL": "llama-3.3-70b-versatile"
+  }
+}
