@@ -6,7 +6,7 @@
 
 ---
 
-## A. Governance contract (`covenant_account/src/lib.rs`)
+## A. Governance contract (`nulth_account/src/lib.rs`)
 
 | Change | Detail |
 |---|---|

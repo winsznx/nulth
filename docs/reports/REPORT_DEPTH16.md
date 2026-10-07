@@ -64,7 +64,7 @@ Decoded from the payment tx envelope (`sorobanData.resources().instructions()`).
 
 ## G. Hardening is depth-independent
 
-`cargo test -p covenant-account` → **`test result: ok. 14 passed; 0 failed`** at DEPTH-16. Fixtures regenerated for the new circuit/vk/root (`scripts/gen_fixture.mjs` → `contracts/covenant_account/src/fixture_data.rs`). The full distinct-error matrix (NoContext, TooManyContexts, BadTokenBinding, BadFromBinding, AmountTooLarge, BadAmountBinding, BadDestBinding, BadPolicyBinding, BadSigPayload, BadSignalCount, BadProof, MalformedVk + valid) holds unchanged — the contract is depth-agnostic.
+`cargo test -p nulth-account` → **`test result: ok. 14 passed; 0 failed`** at DEPTH-16. Fixtures regenerated for the new circuit/vk/root (`scripts/gen_fixture.mjs` → `contracts/nulth_account/src/fixture_data.rs`). The full distinct-error matrix (NoContext, TooManyContexts, BadTokenBinding, BadFromBinding, AmountTooLarge, BadAmountBinding, BadDestBinding, BadPolicyBinding, BadSigPayload, BadSignalCount, BadProof, MalformedVk + valid) holds unchanged — the contract is depth-agnostic.
 
 ## H. Proving feasibility — MEASURED (real, not simulated)
 

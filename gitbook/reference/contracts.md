@@ -9,9 +9,9 @@ Everyone's accounts share one verifier and one account program — you don't red
 | Component | ID / hash |
 |---|---|
 | BN254 Groth16 **verifier** (shared) | `CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG` |
-| Account **wasm hash** (shared) | `7170207590fce2398ba94ffdbc96282444e02897112f05c73c63af93ba847411` |
+| Account **wasm hash** (shared) | `a1dc3a6e6570d096fd60caffec7f7543bef6acce071a1cccbcc7c5f5aa90fd41` |
 | Payment asset — **USDC SAC** | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` (canonical Circle testnet USDC) |
-| Reference account (the hosted demo) | `CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE` |
+| Reference account (the hosted demo) | `CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW` |
 
 ## How a new account is created
 

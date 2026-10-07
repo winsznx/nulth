@@ -42,7 +42,7 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
   └────────┬───────────────────┘
            ▼
   ┌──────────────────────── Stellar / Soroban host ─────────────────────────┐
-  │  CovenantAccount.__check_auth(payload, ProofSig, contexts):              │
+  │  NulthAccount.__check_auth(payload, ProofSig, contexts):              │
   │    bindings (policy · sigpayload · context · token · from · amount ·     │
   │    dest)  +  native BN254 Groth16 pairing check                          │
   │       │ Ok                                  │ Err(AccError #1–18)        │
@@ -52,7 +52,7 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
 ```
 
 - **Client-side prover** (`web/lib/prover.js` + `web/lib/prover-worker.js`): the cap, salt and allowlist are generated and held in the browser; proving runs **off the main thread in a Web Worker** (with an inline fallback if Workers are unavailable). Only the proof and its 6 public signals leave the device.
-- **The "signature":** the proof + public signals are packed as a `ProofSig { a, b, c, pub_signals }` (`contracts/covenant_account/src/lib.rs:72–79`) and attached as the signature of the account's Soroban authorization entry on a `token.transfer`.
+- **The "signature":** the proof + public signals are packed as a `ProofSig { a, b, c, pub_signals }` (`contracts/nulth_account/src/lib.rs:72–79`) and attached as the signature of the account's Soroban authorization entry on a `token.transfer`.
 - **`__check_auth`** runs the bindings and the native pairing check (§4). On `Ok`, the SAC transfer executes; on any failure the transaction fails and **no state is modified**.
 - **Backend, named honestly:** there is **no production backend prover**. The reference deployment uses (a) an **operator fee-payer key** purely to **submit/relay** transactions (it pays XLM fees — in production this is a gasless relayer/wallet, PRD §14); and (b) **only for the `/agent` route**, a **self-hosted server-side operator instance** (`scripts/agent_server.mjs`) that holds a policy secret and proves server-side — disclosed as an *operator*, not a shared prover service. Chain reads (balance/policy/activity) go through **Stellar RPC** (a read/indexer layer), not a custom backend. No third party ever holds a spending key, because none exists.
 
@@ -71,10 +71,11 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
 6. context is a `transfer` call ⇒ else `BadContext #7`
 7. **token pinning** — the call targets the stored `TOKEN` ⇒ else `BadTokenBinding #10`
 8. **`from == self`** (no confused deputy) ⇒ else `BadFromBinding #11`
-9. **amount range, in-contract** — `amount < 0` ⇒ `NegativeAmount #9`; `amount ≥ 2^100` ⇒ `AmountTooLarge #12` (range is re-checked in-contract, not trusted to the circuit alone)
+9. **amount range, in-contract** — `amount < 0` ⇒ `NegativeAmount #9`; `amount == 0` ⇒ `ZeroAmount #19`; `amount ≥ 2^100` ⇒ `AmountTooLarge #12` (range is re-checked in-contract, not trusted to the circuit alone)
 10. **amount binding** — `U256(amount) == sig.amount` ⇒ else `BadAmountBinding #5`
 11. **dest binding** — `addr_to_field(to) == sig.dest_field` ⇒ else `BadDestBinding #6`
-12. **native Groth16 pairing** verifies against the stored VK ⇒ else `BadProof #3` → otherwise **`Ok(())`**
+12. **rolling epoch budget** — `spent_in_window + amount ≤ EPOCH_CAP` (window rolls every `EPOCH_LEDGERS`) ⇒ else `EpochCapExceeded #20`
+13. **native Groth16 pairing** verifies against the stored VK ⇒ else `BadProof #3`; on success the epoch counter is committed → **`Ok(())`**
 
 **Full error surface** (`#[contracterror] enum AccError`, `lib.rs:38–59`):
 
@@ -98,6 +99,11 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
 | 16 | `TooManyContexts` | more than one context (would be an N-fold spend) |
 | 17 | `AccountFrozen` | admin has frozen the account (gate #1, before pairing) |
 | 18 | `Unauthorized` | **reserved** — non-admin governance calls are rejected by `admin.require_auth()` (host-enforced) before any body runs, so this code is never returned in practice (`lib.rs:56–58`) |
+| 19 | `ZeroAmount` | `amount == 0` (zero-value transfer refused; policy is `0 < amount`) |
+| 20 | `EpochCapExceeded` | cumulative spend in the current window + `amount` would exceed `EPOCH_CAP` |
+| 21 | `NoPendingRotation` | `execute_rotation`/`cancel` with no staged rotation |
+| 22 | `RotationLocked` | `execute_rotation` before the `rotation_delay` timelock elapses |
+| 23 | `BadEpochConfig` | constructor given a degenerate budget/timelock (`epoch_ledgers==0`, `epoch_cap<=0`, or `rotation_delay==0`) |
 
 Live, the host collapses every `__check_auth` failure to `Error(Auth, InvalidAction)` to an outside observer (no attacker oracle); the precise `#N` is read from simulation. (See ADVERSARIAL_TESTING.md.)
 
@@ -128,13 +134,13 @@ In-browser proving (the client-side step, not the on-chain verify): **~0.7–0.9
 
 | Component | Value | Source |
 |---|---|---|
-| Governance account (the deployed `CovenantAccount`) | `CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE` | `web/config.js`, `build/deployed_p2.json` |
+| Governance account (the deployed `NulthAccount`) | `CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW` | `web/config.js`, `build/deployed_p2.json` |
 | Shared BN254 verifier (generic Groth16) | `CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG` | `web/config.js` |
 | USDC SAC (pinned token) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | `web/config.js` |
 | USDC issuer (Circle Stellar-testnet USDC) | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` | `web/config.js` |
-| Account WASM hash (new accounts = `createContractV2` against this) | `7170207590fce2398ba94ffdbc96282444e02897112f05c73c63af93ba847411` | `web/config.js`, `build/deployed_p2.json` |
+| Account WASM hash (new accounts = `createContractV2` against this) | `a1dc3a6e6570d096fd60caffec7f7543bef6acce071a1cccbcc7c5f5aa90fd41` | `web/config.js`, `build/deployed_p2.json` |
 | Governance admin (disclosed; cannot move funds) | `GDSY6EO672YWIL5VPQJ2O4IIHFTXIMR763R7SMSMBRDQKNGTHNAJWVBU` | `web/config.js`, `build/deployed_p2.json` |
-| Constructor deploy tx | `7349075a28e89c8784a12c5c76fcbc35ccd3e0355a7bf937eb2a8461d62fa093` | `build/deployed_p2.json` |
+| Constructor deploy tx | `e94c52fa5481866a64bc0813cf93b75a89b209dc2867485df867979d06ec4428` | `build/deployed_p2.json` |
 | WASM upload tx | `8cd5edd45bfa8d493deaf580a917a4d4a1aab04ee92dd6243ad35f5b4b8fe9bd` | `build/deployed_p2.json` |
 
 **Circuit parameters** (`circuits/policy.circom`):
@@ -149,21 +155,21 @@ In-browser proving (the client-side step, not the on-chain verify): **~0.7–0.9
 | Trusted setup | Hermez `powersOfTau28_hez_final_15` (2^15) | REPORT_DEPTH16.md §B |
 | Amount range | `Num2Bits(100)` → amount < 2^100 (matched in-contract, `lib.rs:100`) | `policy.circom:54`, `lib.rs:100` |
 
-**Test surface:** `cargo test -p covenant-account` → **34 / 34** (`web/config.js tests`, REPORT_GOVERNANCE.md); circuit golden/abort tests → **7 / 7** (`scripts/test_circuits.mjs`); **5** headless real-testnet e2e drivers (`web_e2e`, `disc_e2e`, `deck_e2e`, `agent_e2e`, `account_e2e`).
+**Test surface:** `cargo test -p nulth-account` → **42 / 42** (`web/config.js tests`, REPORT_GOVERNANCE.md); circuit golden/abort tests → **7 / 7** (`scripts/test_circuits.mjs`); **5** headless real-testnet e2e drivers (`web_e2e`, `disc_e2e`, `deck_e2e`, `agent_e2e`, `account_e2e`).
 
 ## 8. Not covered here — see (this documentation set)
 
 This file is the spine; it is deliberately not a monolith.
 
 - **PROTOCOL.md** — the keyless-account primitive and the Soroban `CustomAccountInterface` standard; the `ProofSig` "signature" format and the snarkjs→BN254 serialization.
-- **[SECURITY.md](../SECURITY.md)** (canonical threat model) — adversaries and trust boundaries, including the **admin trust root**: the admin can rotate the committed policy and freeze/unfreeze, and **cannot spend in one step** (every spend needs a valid proof for the committed policy) but **can** rotate the committed policy to one it controls and then spend (two observable, event-emitting steps) — a full governance trust root; multisig + timelock + epoch-grace rotation are the documented hardening.
+- **[SECURITY.md](../SECURITY.md)** (canonical threat model) — adversaries and trust boundaries, including the **admin trust root**: the admin can rotate the committed policy and freeze/unfreeze, and **cannot spend in one step** (every spend needs a valid proof for the committed policy) but **can** rotate the committed policy to one it controls and then spend — now via a **timelocked** `propose_rotation → delay → execute_rotation` (publicly staged for the delay window), so a governance trust root that is rate-limited but not eliminated; multisig admin + epoch-grace rotation are the remaining documented hardening.
 - **CIRCUIT_VERIFICATION.md** — the address→field encoding and golden vectors (client-side `addrToField` ≡ on-chain `dest_field`), trusted-setup provenance, and proof/verify reproduction.
 - **ADVERSARIAL_TESTING.md** — the attack matrix (malleability #3, redirect/lift #13, old-policy #4, wrong-token #10, frozen #17, …) with real FAILED testnet txs and the per-mode `AccError` decode.
 
 ## 9. Provenance — where each value came from (and what could not be sourced)
 
 Sourced from the repository (cited inline above):
-- **Error codes 1–18** — `contracts/covenant_account/src/lib.rs:38–59` (verbatim enum). Reachability verified by grep: every code is returned at ≥1 site **except** `AlreadyInit` (#2) and `Unauthorized` (#18), which are **reserved (0 refs)** — #2 because the constructor is host-enforced single-shot, #18 because non-admin governance calls are rejected by `admin.require_auth()` before any body runs.
+- **Error codes 1–18** — `contracts/nulth_account/src/lib.rs:38–59` (verbatim enum). Reachability verified by grep: every code is returned at ≥1 site **except** `AlreadyInit` (#2) and `Unauthorized` (#18), which are **reserved (0 refs)** — #2 because the constructor is host-enforced single-shot, #18 because non-admin governance calls are rejected by `admin.require_auth()` before any body runs.
 - **`__check_auth` gate order + bindings** — `lib.rs:233–335`; atomic constructor — `lib.rs:109–127`.
 - **Replay design** — `lib.rs:17–18` (module doc) + `lib.rs:262–271` (policy + sigpayload binding).
 - **Contract IDs, admin, WASM hash, USDC SAC/issuer, deploy txs** — `web/config.js` and `build/deployed_p2.json` (identical values cross-checked).
@@ -172,8 +178,8 @@ Sourced from the repository (cited inline above):
 - **Verify cost 34,149,591 = 8.537% (constant, Δ=0 across depth)** — REPORT_DEPTH16.md §F + `web/config.js`.
 - **Live total ≈34,254,340 / ≈8.56% on a first receive** — REPORT_CREATE_FLOW.md / REPORT_POLISH.md (measured this session).
 - **Desktop proving ~0.7–0.9 s, ~50 MB heap** — REPORT_POLISH.md.
-- **Test counts** — `cargo` 34 (REPORT_GOVERNANCE.md / `web/config.js`), circuit 7 (`scripts/test_circuits.mjs`), 5 e2e drivers (`scripts/*_e2e.mjs`).
-- **soroban-sdk 26.1.0** — `contracts/covenant_account/Cargo.toml`. **Protocol 26 / testnet** — `web/config.js` (`networkPassphrase`) + report headers.
+- **Test counts** — `cargo` 42 (REPORT_GOVERNANCE.md / `web/config.js`), circuit 7 (`scripts/test_circuits.mjs`), 5 e2e drivers (`scripts/*_e2e.mjs`).
+- **soroban-sdk 26.1.0** — `contracts/nulth_account/Cargo.toml`. **Protocol 26 / testnet** — `web/config.js` (`networkPassphrase`) + report headers.
 
 **Could not source / intentionally omitted (not invented here):**
 - A **mainnet** deployment — none exists; mainnet is held for post-audit (the UI Mainnet tab is disabled). No mainnet IDs are stated.

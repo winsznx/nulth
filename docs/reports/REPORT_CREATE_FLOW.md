@@ -85,7 +85,7 @@ The demo governance account is left **healthy** (unfrozen, real policy).
 ## Secrets never leave the browser — the exact code path
 
 1. **Salt** — `web/lib/create.js → randomSaltDec()` uses `crypto.getRandomValues` (browser CSPRNG). Never transmitted.
-2. **Commitment + root** — `create.js → buildPolicy()` calls `window.CovenantPoseidon.buildPolicy(cap, salt, fields)` in `web/lib/poseidon.js` (pure BigInt, in-process). The only network calls are `dest_field` *simulations*, which take a **public destination address** and return a **public field element** — they never carry the cap, salt, or membership structure.
+2. **Commitment + root** — `create.js → buildPolicy()` calls `window.NulthPoseidon.buildPolicy(cap, salt, fields)` in `web/lib/poseidon.js` (pure BigInt, in-process). The only network calls are `dest_field` *simulations*, which take a **public destination address** and return a **public field element** — they never carry the cap, salt, or membership structure.
 3. **Proving** — `web/lib/prover.js` runs snarkjs `fullProve` on the in-browser secret; only the proof + 6 public signals go on-chain.
 4. **Persistence** — `create.js → keystore()/download()/saveLocal()`: the keystore (cap, salt, allowlist, paths) is written to a **downloaded file + localStorage only**. There is **no server and no POST** anywhere in the path. (grep: the repo has no backend for user data; `create.js` performs zero `fetch` of secrets — only `rpc.*` for public sim/submit and a `fetch` of the public `verification_key.json`.)
 

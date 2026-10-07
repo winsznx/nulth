@@ -34,7 +34,10 @@ Both circuits target the **same generic BN254 Groth16 verifier** on-chain; the d
 - **Phase 1:** the public **Hermez `powersOfTau28_hez_final_15`** powers-of-tau (2^15 = 32,768; covers the 9,402 constraints) — a multi-party ceremony (REPORT_DEPTH16.md §B, §A).
 - **Phase 2:** a **single, fresh, local contribution** produced the deployed proving/verification keys (REPORT_DEPTH16.md §B). **This is a DEV setup, not a production ceremony:** phase-2 has one contributor, so a party that retained the phase-2 toxic waste could forge proofs — **a phase-2 compromise breaks soundness.** A production deployment **requires a multi-party phase-2 ceremony** (or a transparent-setup system). Stated identically in SECURITY.md §8.
 
-**Committed artifacts (real sizes + sha256, the verification anchors):**
+**Pinned artifacts (real sizes + sha256, the verification anchors):** these binaries are **git-ignored**
+(`.gitignore`: `**/*.zkey`, `circuits/build/`) because of their size — they are **not** committed to the
+repo. They are deployed with the running site and are **regenerable** from `circuits/*.circom` + the public
+Hermez ptau via `scripts/` (§6); the sha256 anchors below are what a reviewer pins against a rebuild.
 
 | Artifact | Size (bytes) | sha256 |
 |---|---|---|
@@ -44,9 +47,10 @@ Both circuits target the **same generic BN254 Groth16 verifier** on-chain; the d
 | `circuits/build/disclosure_final.zkey` | 391,745 | `02b9110f3bcce0c57632d073e2344909c80dc07df68ab6a6404546ad7f2c0ab6` |
 | `circuits/build/disclosure_vk.json` | 3,105 | `830812017a534e21df9f5842c4e7094fecab71de007ea1fb92557db03031edf6` |
 
-> Reviewer note: the **phase-2 contribution command is not committed as a script** — the zkey/vkey
-> artifacts above (with their hashes) are the committed evidence, and §6 reproduces the *proof and
-> on-chain verify* from them. (Flagged in §8.)
+> Reviewer note: the **phase-2 contribution command is not committed as a script**, and the zkey/vkey
+> binaries themselves are **git-ignored** (not in the repo). The sha256 hashes above are the pinned
+> evidence; §6 reproduces the *proof and on-chain verify* from the artifacts, which are shipped with the
+> deployment and regenerable from the circuits + public ptau. (Setup provenance flagged in §8.)
 
 ## 3. Address → field encoding + golden vector
 
@@ -56,7 +60,7 @@ The allowlist leaf for an address is its **`dest_field`**, defined identically i
 addrToField(addr) = U256( sha256( xdr(ScVal::Address(addr)) )  with byte[0] = 0 )   // big-endian
 ```
 
-(`contracts/covenant_account/src/lib.rs` `addr_to_field`; client `web/lib/poseidon.js` `addrToField` = `U256(sha256(Address.toScVal().toXDR()) , byte[0]=0)`.) Computing it **client-side** is what (a) lets a proof verify against the on-chain `dest_field` binding, and (b) keeps the allowlist in the browser (no `dest_field` RPC — SECURITY.md §4).
+(`contracts/nulth_account/src/lib.rs` `addr_to_field`; client `web/lib/poseidon.js` `addrToField` = `U256(sha256(Address.toScVal().toXDR()) , byte[0]=0)`.) Computing it **client-side** is what (a) lets a proof verify against the on-chain `dest_field` binding, and (b) keeps the allowlist in the browser (no `dest_field` RPC — SECURITY.md §4).
 
 **Golden vector — client-side JS `addrToField` ≡ on-chain `dest_field`** (re-run against the deployed account `CANA5QYV…`; both columns identical):
 
@@ -66,7 +70,7 @@ addrToField(addr) = U256( sha256( xdr(ScVal::Address(addr)) )  with byte[0] = 0 
 | `GCES7J7A…` (G) | `225358798824386335574909253758602147795716296517185140353457992786427938953` |
 | `CBIELTK6…` (C, USDC SAC) | `434876735873296940524849344420632069569237535719074608570706991724706661005` |
 
-**Golden vector — the client-side *sparse* tree reproduces a LIVE account's commitment + root.** Account `CA5PGJ65PUDND6XNO6USZ6WX4RYMI3ZNWHPJPDDE4G5MFJBWTS7E54FA` was created in-browser; rebuilding its policy from `cap=500000000`, `salt=86002717667906330598776412128047889623`, allowlist `[GBEOVHEZ…]` via `CovenantPoseidon.buildPolicyForAddresses` yields:
+**Golden vector — the client-side *sparse* tree reproduces a LIVE account's commitment + root.** Account `CA5PGJ65PUDND6XNO6USZ6WX4RYMI3ZNWHPJPDDE4G5MFJBWTS7E54FA` was created in-browser; rebuilding its policy from `cap=500000000`, `salt=86002717667906330598776412128047889623`, allowlist `[GBEOVHEZ…]` via `NulthPoseidon.buildPolicyForAddresses` yields:
 
 ```
 commitment = 13828430850036681054971484468800379982101659289833662393808527290468956613566   (matches keystore)
@@ -151,7 +155,7 @@ Runnable harnesses already in the repo: `scripts/test_circuits.mjs` (snarkjs pro
 - ptau name + phase-2 = single local contribution — REPORT_DEPTH16.md §B.
 - Golden vectors (addrToField≡dest_field; Poseidon parity; sparse reproduction; c1c0 vs c0c1) — re-run this pass against the deployed account `CANA5QYV…` and verifier `CCKBPVP7…`; exact outputs reproduced verbatim in §3–§5.
 - Cost decode 34,149,591 = 8.537% — REPORT_DEPTH16.md §F.
-- Live-account commitment/root match — `covenant-CA5PGJ65.keystore.json` + the on-chain success `f4dae3cb…` (REPORT_CREATE_FLOW.md §F).
+- Live-account commitment/root match — `nulth-CA5PGJ65.keystore.json` + the on-chain success `f4dae3cb…` (REPORT_CREATE_FLOW.md §F).
 
 **Could not source / flagged honestly:**
 - **A committed phase-2 setup script** — none in the repo; the zkey/vkey artifacts (with hashes, §2) are the committed evidence, and §6 reproduces the *proof + verify*, not the setup. A reviewer cannot re-derive the keys without re-running a (single-contributor) phase-2.

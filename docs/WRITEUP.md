@@ -17,7 +17,7 @@ invocations + nonce + expiration), the account's declared `Signature` type, and 
 authorization contexts. For an Ed25519 account, `Signature` is 64 bytes. For Nulth, it is a proof:
 
 ```rust
-// contracts/covenant_account/src/lib.rs
+// contracts/nulth_account/src/lib.rs
 /// The "signature" for this account is a Groth16 proof + its public signals.
 #[contracttype]
 pub struct ProofSig {
@@ -27,7 +27,7 @@ pub struct ProofSig {
     pub pub_signals: Vec<U256>, // the 6 public inputs
 }
 
-impl CustomAccountInterface for CovenantAccount {
+impl CustomAccountInterface for NulthAccount {
     type Signature = ProofSig;          // <-- the signature IS a proof
     type Error = AccError;
 

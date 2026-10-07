@@ -20,7 +20,7 @@ This abstraction is separable from Nulth-the-app. The general pattern: for any s
 2. a spend carries a **Groth16 proof** that the *public* payment facts (amount, destination) satisfy `P` under the *hidden* committed policy;
 3. `__check_auth` verifies the proof natively (BN254) and **binds** it to the actual transfer and to this invocation (ARCHITECTURE §4–5).
 
-**Nulth is one instantiation** of the primitive, with `P = (amount ≤ cap) ∧ (dest ∈ allowlist)`, where the allowlist is a Poseidon-Merkle tree (DEPTH-16, 65,536 leaves) and the cap is committed via `Poseidon(cap, salt)` (real: `contracts/covenant_account/src/lib.rs`, `circuits/policy.circom`). The primitive itself is **policy-agnostic**: a different circuit + committed public inputs yields a different policy-account — velocity limits, time-windows, multi-party thresholds, balance floors, etc. *(Those alternatives are illustrative of the abstraction; only the cap-∧-allowlist instantiation is built here.)*
+**Nulth is one instantiation** of the primitive, with `P = (amount ≤ cap) ∧ (dest ∈ allowlist)`, where the allowlist is a Poseidon-Merkle tree (DEPTH-16, 65,536 leaves) and the cap is committed via `Poseidon(cap, salt)` (real: `contracts/nulth_account/src/lib.rs`, `circuits/policy.circom`). The primitive itself is **policy-agnostic**: a different circuit + committed public inputs yields a different policy-account — velocity limits, time-windows, multi-party thresholds, balance floors, etc. *(Those alternatives are illustrative of the abstraction; only the cap-∧-allowlist instantiation is built here.)*
 
 ## 2. The interface a compatible implementation satisfies — a PROPOSED pattern
 
@@ -42,13 +42,13 @@ A compatible policy-account:
 - **Context discipline** — exactly one context, the call is `transfer` on the **pinned** token, `from == self` (ARCHITECTURE §4).
 - **Optional governance module** — `admin` + `rotate_policy(new_commitment, new_root)` + `freeze` / `unfreeze` (Nulth ships this; `lib.rs`). *Optional:* a policy-account may be immutable (no admin) instead.
 
-To build one: write a circuit for your policy, deploy or **reuse a generic BN254 Groth16 verifier**, and implement `__check_auth` with the bindings above. Nulth is a working **reference implementation** — account `CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE`, shared verifier `CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG` (`web/config.js`).
+To build one: write a circuit for your policy, deploy or **reuse a generic BN254 Groth16 verifier**, and implement `__check_auth` with the bindings above. Nulth is a working **reference implementation** — account `CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW`, shared verifier `CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG` (`web/config.js`).
 
 ## 3. The disclosure extension (Tier-1)
 
 A **second circuit** proves a *property* of the hidden policy to an auditor without revealing it: **`cap ≤ regulatory_max`**, plus a commitment opening that binds the proof to the account's *real* committed cap. Public inputs `[policy_commitment, regulatory_max]`; private `[cap, salt]`; the circuit asserts `Poseidon(cap, salt) === policy_commitment ∧ cap ≤ regulatory_max` (`circuits/disclosure.circom`). 824 constraints; the auditor learns only the boolean `cap ≤ regulatory_max`, never the cap.
 
-Crucially, it is **verified on-chain by the SAME deployed generic BN254 verifier via a vk swap** — `verify_proof(vk, proof, pub_signals)` is generic over the vk and the number of public signals, so the disclosure proof (`nPublic=2`, `IC.len=3`) verifies on the already-deployed verifier `CCKBPVP7…` with **no new contract** (REPORT_VERIFY_TIER1.md; `web/lib/chain.js verifyDisclosure` calls `C.verifier`). Real: an in-browser disclosure proof (173 ms) returns `verify_proof → true` on-chain; below-cap limits make the circuit unsatisfiable (truthful refusal). This **generalizes**: any provable property of the committed policy is a disclosure circuit reusing the same verifier. See **CIRCUIT_VERIFICATION.md** for circuit/vector details.
+Verifier-path note (important, so no claim is overstated): the **payment** path does **not** call the standalone verifier contract — the account **inlines** the same BN254 Groth16 pairing check directly in `__check_auth` (`nulth_account/src/lib.rs` `groth16_verify`), so a spend depends on no external contract. The standalone deployed verifier `CCKBPVP7…` is the **disclosure** path's verifier: the disclosure proof is **verified on-chain by that generic verifier via a vk swap** — `verify_proof(vk, proof, pub_signals)` is generic over the vk and the number of public signals, so the disclosure proof (`nPublic=2`, `IC.len=3`) verifies on the already-deployed verifier with **no new contract** (REPORT_VERIFY_TIER1.md; `web/lib/chain.js verifyDisclosure` calls `C.verifier`). Real: an in-browser disclosure proof (173 ms) returns `verify_proof → true` on-chain; below-cap limits make the circuit unsatisfiable (truthful refusal). This **generalizes**: any provable property of the committed policy is a disclosure circuit reusing the same verifier. See **CIRCUIT_VERIFICATION.md** for circuit/vector details.
 
 ## 4. Use-cases — one substrate, two markets
 
@@ -112,9 +112,9 @@ None of the SDK or the full wallet is shipped here; the bindings, circuits, seri
 ## 9. Provenance — built (cited) vs roadmap (labeled), and what wasn't sourced
 
 **Built / real (cited):**
-- The primitive + Nulth's instantiation — `contracts/covenant_account/src/lib.rs`, `circuits/policy.circom`.
+- The primitive + Nulth's instantiation — `contracts/nulth_account/src/lib.rs`, `circuits/policy.circom`.
 - The interface bindings (signal vector, commitment/payment/sigpayload binding, one-context, token-pin, governance module) — `lib.rs` (cross-referenced to ARCHITECTURE §4–5).
-- Reference deployment ids — account `CANA5QYV…`, shared verifier `CCKBPVP7…` — `web/config.js`, `build/deployed_p2.json`.
+- Reference deployment ids — account `CAKSFFBT…`, shared verifier `CCKBPVP7…` — `web/config.js`, `build/deployed_p2.json`.
 - Tier-1 disclosure (circuit, 824 constraints, public `[policy_commitment, regulatory_max]`, on-chain verify via vk swap on the **same** verifier, 173 ms browser proof) — `circuits/disclosure.circom`, `web/lib/chain.js`, REPORT_VERIFY_TIER1.md.
 - Use-case demonstrations — treasury (REPORT_DEPTH16.md), agent jailbreak (REPORT_AGENT_DECK.md), self-serve create (REPORT_CREATE_FLOW.md).
 - Stellar-fit properties (no nullifier write, constant verify, instance-storage-only footprint) — derived from ARCHITECTURE §5–6 (`lib.rs` replay design).

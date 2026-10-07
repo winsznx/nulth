@@ -18,13 +18,16 @@ did, and which results are real on-chain facts versus AI-generated text. Nothing
   dedicated pass — see [REPORT_DOC_RECONCILE.md](./REPORT_DOC_RECONCILE.md). We disclose the process,
   not just the result.
 
-## The `/agent` demo's brain is a real Claude
+## The `/agent` demo's brain (deployed path)
 
-The agent demo (`/agent` route, `scripts/agent_server.mjs`) is driven by a **real Claude LLM via the
-`claude` CLI** — not a scripted bot. **Disclosed:** there is **no `ANTHROPIC_API_KEY`** in the
-environment and no `@anthropic-ai/sdk`; the CLI uses existing auth. The agent has exactly one tool,
-`pay(service, amount)`, which runs the prover server-side and submits a proof-authorized
-`token.transfer`. (Source: [REPORT_AGENT_DECK.md](./REPORT_AGENT_DECK.md).)
+The **deployed** Agent Desk (`/agent` route → `server.mjs` `/api/agent`) uses a **Groq LLM when
+`GROQ_API_KEY` is configured, and a deterministic regex parser fallback otherwise** — `/api/health`
+reports which (`agent: "groq" | "fallback"`). Either way the LLM is **only an intent translator**
+(English → `{action, to, amount}`), **not** the guardrail: an out-of-policy instruction is *attempted*
+and then cryptographically **refused by the account** because no valid proof can be formed. A separate
+**legacy** driver (`scripts/agent_server.mjs`) wraps a real Claude via the `claude` CLI (no
+`ANTHROPIC_API_KEY`/`@anthropic-ai/sdk` — the CLI uses existing auth); it is **not** the deployed
+entrypoint. (Source: [REPORT_AGENT_DECK.md](./REPORT_AGENT_DECK.md).)
 
 ## What a human verified — not the AI
 

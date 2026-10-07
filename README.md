@@ -18,7 +18,7 @@ Nulth is a proof-authorized Stellar account: it can only spend if it proves, in 
 
 | Contract | ID |
 |---|---|
-| Nulth account (keyless, ZK-authorized) | [`CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE`](https://stellar.expert/explorer/testnet/contract/CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE) |
+| Nulth account (keyless, ZK-authorized) | [`CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW`](https://stellar.expert/explorer/testnet/contract/CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW) |
 | BN254 Groth16 verifier | [`CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG`](https://stellar.expert/explorer/testnet/contract/CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG) |
 | Payment asset | canonical Circle testnet USDC (`GBBD47IF…ZLLFLA5`) |
 
@@ -33,7 +33,7 @@ Intentionally held until external review. Nulth is a new authorization surface, 
 ## Run the tests now
 
 ```bash
-# Contract — 34 tests, all distinct error codes
+# Contract — 42 tests, all distinct error codes
 cargo test --manifest-path contracts/Cargo.toml
 
 # Circuit — 7 tests (policy + disclosure, valid + invalid witnesses)
@@ -65,9 +65,13 @@ bash scripts/run_e2e.sh
 | `test_negative_amount` | `i128::MIN` | `NegativeAmount` | #9 | ✅ |
 | `test_bad_signal_count` | wrong `pub_signals` length | `BadSignalCount` | #8 | ✅ |
 | `test_root_binding` | wrong `allowlist_root` | `BadPolicyBinding` | #4 | ✅ |
+| `test_zero_amount_rejected` | zero-value transfer | `ZeroAmount` | #19 | ✅ |
+| `test_epoch_cap_blocks_cumulative_drain` | N proofs drain > budget | `EpochCapExceeded` | #20 | ✅ |
+| `test_rotation_locked_before_delay` | execute rotation before timelock | `RotationLocked` | #22 | ✅ |
+| `test_bad_epoch_config_zero_cap_rejected` | degenerate budget/timelock at deploy | `BadEpochConfig` | #23 | ✅ |
 | replay (same auth entry) | resubmit settled nonce | host `ExistingValue` | — | ✅ · [sim evidence](./docs/reports/REPORT_P1.md) |
 
-¹ Non-admin governance is rejected at the **host** boundary (`admin.require_auth()`) before any contract body runs — the contract code `Unauthorized` #18 is **reserved** and never returned. The cargo test is `#[should_panic]` on the unsatisfied `require_auth`. Likewise `AlreadyInit` #2 is reserved (host-enforced single-shot constructor); **16 of the 18 declared codes are active**.
+¹ Non-admin governance is rejected at the **host** boundary (`admin.require_auth()`) before any contract body runs — the contract code `Unauthorized` #18 is **reserved** and never returned. The cargo test is `#[should_panic]` on the unsatisfied `require_auth`. Likewise `AlreadyInit` #2 is reserved (host-enforced single-shot constructor); **21 of the 23 declared codes are active**.
 
 Full matrix with tx hashes: [ADVERSARIAL_TESTING.md](./ADVERSARIAL_TESTING.md).
 
@@ -100,7 +104,7 @@ Not a token pool — funds stay standard USDC; the *authorization* is private.
 
 RouteDock feedback: *"impressive… useful smart account… more substantial tests on the contract."*
 
-Nulth makes the smart account the hero, ZK load-bearing from the first byte, and the adversarial suite the headline — not an afterthought. Every `AccError` is a tested negative control. Every on-chain rejection has a tx hash. The judges asked for tests; we answer with 34 cargo + 7 circuit + 5 e2e drivers = 46 total, each mapping an attack to its error code to its on-chain evidence.
+Nulth makes the smart account the hero, ZK load-bearing from the first byte, and the adversarial suite the headline — not an afterthought. Every `AccError` is a tested negative control. Every on-chain rejection has a tx hash. The judges asked for tests; we answer with 42 cargo + 7 circuit + 5 e2e drivers = 54 total, each mapping an attack to its error code to its on-chain evidence.
 
 ---
 
@@ -111,8 +115,8 @@ OFF-CHAIN (operator / agent)                   ON-CHAIN (Soroban)
 ─────────────────────────────                  ──────────────────
 policy = { cap, allowlist[], salt }            Nulth account (DEPTH-16, BN254)
                                                  storage: vk, policy_commitment,
-per payment (amount, dest):                               allowlist_root, token,
-  1. Web Worker: snarkjs.fullProve                        admin, frozen
+per payment (amount, dest):                               allowlist_root, token, admin,
+  1. Web Worker: snarkjs.fullProve                        frozen, epoch budget, pending rotation
      ~970 ms, DEPTH-16, in-browser            __check_auth(payload, ProofSig, ctxs):
      public: [amount, dest, commitment,          1. frozen? → AccountFrozen
               root, sigpayload_hi/lo]            2. pub_signals[2,3] == stored?
@@ -142,7 +146,7 @@ per payment (amount, dest):                               allowlist_root, token,
 
 An observer with full mempool + vk + chain state cannot determine the cap or any unexercised allowlist member. They learn only the counterparties actually paid and a lower bound on the cap.
 
-The admin key is a full governance trust root: it cannot spend in one step (every spend needs a valid proof for the committed policy), but it can rotate the committed policy to one it controls and then spend — two observable, event-emitting on-chain steps. Hardening path: multisig + timelock (documented, not yet built). See [SECURITY.md](./SECURITY.md).
+The admin key is a governance trust root: it cannot spend in one step (every spend needs a valid proof for the committed policy), but it can rotate the committed policy to one it controls and then spend. That path is now **timelocked** — rotation is a two-step `propose_rotation → (rotation_delay ledgers) → execute_rotation`, so a malicious/compromised-admin rotation is publicly observable (event-emitting) for the delay window before it can take effect, during which the account can be frozen or funds withdrawn under the old policy. Remaining hardening path: **multisig admin** (documented, not yet built). See [SECURITY.md](./SECURITY.md).
 
 ---
 
@@ -152,7 +156,7 @@ The admin key is a full governance trust root: it cannot spend in one step (ever
 
 **Tier-2 allowlist ⊆ authority screened-set (Step-4 recon):** subset containment over Merkle sets — the harder problem. Real ZK if feasible; Tier-1 ships regardless.
 
-**Running cumulative budget:** concurrent enforcement across payments is a distributed-systems problem, not cryptography — concurrent proofs over shared state need ordering guarantees the current design deliberately avoids.
+**Running cumulative budget (shipped):** a rolling per-window budget caps *cumulative* spend, not just per-payment amount — `__check_auth` tracks `(epoch_anchor, spent)` in contract storage and rejects `EpochCapExceeded` (#20) once `spent + amount` would exceed `epoch_cap` in the current window, so N in-policy proofs can no longer drain more than the window budget. It advances the counter only on a fully-valid authorization (after the pairing check). Note: this is sequential per-account accounting; the per-payment cap + allowlist remain private (circuit-enforced), while the aggregate window ceiling is a public governance parameter set at deploy.
 
 ---
 
@@ -165,7 +169,9 @@ The admin key is a full governance trust root: it cannot spend in one step (ever
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System architecture, `__check_auth` gate order + error codes, data flow, cost decode |
 | [docs/PROTOCOL.md](./docs/PROTOCOL.md) | The ZK-authorization primitive, the proposed standard, `ProofSig` format, disclosure extension |
 | [docs/CIRCUIT_VERIFICATION.md](./docs/CIRCUIT_VERIFICATION.md) | Circuit specs, trusted-setup provenance, reproducible golden vectors |
-| [REPORT_P1.md](./docs/reports/REPORT_P1.md) | Production hardening evidence: 16 error codes, replay closed |
+| [docs/PROVENANCE.md](./docs/PROVENANCE.md) | Naming history (Covenant→Nulth), borrowed components + attribution, AI-use disclosure |
+| [docs/REDEPLOY.md](./docs/REDEPLOY.md) | Redeploy runbook for the new 8-arg constructor + epoch budget + rotation timelock |
+| [REPORT_P1.md](./docs/reports/REPORT_P1.md) | Production hardening evidence: distinct error codes, replay closed |
 | [REPORT_GOVERNANCE.md](./docs/reports/REPORT_GOVERNANCE.md) | P2: rotate_policy, freeze/unfreeze, governance tests |
 | [REPORT_AGENT_DECK.md](./docs/reports/REPORT_AGENT_DECK.md) | Agent jailbreak + Exploitation Deck — 5 real on-chain attack receipts |
 | [REPORT_VERIFY_TIER1.md](./docs/reports/REPORT_VERIFY_TIER1.md) | Tier-1 ZK disclosure: circuit, on-chain verify, browser demo |

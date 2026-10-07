@@ -54,9 +54,11 @@ runs last. The full step-by-step enumeration is in **[docs/ARCHITECTURE.md](./do
 11. Groth16 verify         → BadProof              #3
 ```
 
-The enum declares 18 variants, but **two are reserved and never returned**: `AlreadyInit` (#2) — the
+The enum declares 23 variants, but **two are reserved and never returned**: `AlreadyInit` (#2) — the
 constructor is host-enforced single-shot — and `Unauthorized` (#18) — non-admin governance calls are
-rejected by the host (`admin.require_auth()`) before any body runs (§9). **16 codes are active.**
+rejected by the host (`admin.require_auth()`) before any body runs (§9). **21 codes are active** (the
+newest: `ZeroAmount` #19, `EpochCapExceeded` #20, `NoPendingRotation` #21, `RotationLocked` #22,
+`BadEpochConfig` #23).
 
 ---
 
@@ -80,7 +82,7 @@ the precise `AccError #N` below is read from **simulation**, where the caller al
 | **Rogue / prompt-injected AI agent** | Injected to drain to a non-allowlisted address | Witness generation fails (address not in the allowlist tree); backstop: chain rejects a hand-crafted proof | agent SUCCESS `f23be708…`; backstop FAILED `19e4bd88…` |
 | **Compromised browser session** (holds the policy secret) | Has `(cap, salt, allowlist[], path[])` | Can drain **up to `cap` per payment, only to allowlisted destinations** — cannot exceed the cap or the allowlist | by construction |
 | **Malicious RPC / relayer** | Relays or refuses to relay; serves reads | **Censorship / availability only** — cannot forge a spend and cannot learn the allowlist (client-side encoding, §4) | §4 network trace |
-| **Malicious / compromised admin** | Holds the admin key | Cannot spend in one step, **but can `rotate_policy` then spend in two observable steps** — the primary trust boundary (§5) | §5 |
+| **Malicious / compromised admin** | Holds the admin key | Cannot spend in one step; **can rotate-then-spend, but only via a timelocked `propose_rotation → delay → execute_rotation`** — publicly staged for the whole delay window — the primary trust boundary (§5) | §5 |
 
 ---
 
@@ -103,9 +105,9 @@ the address present in 0 of them** (`scripts/create_trace_e2e.mjs`, REPORT_TRUTH
 
 **Stated limits of the privacy:** (a) at *pay* time, the destination being paid is public anyway — it is
 the transfer recipient; the privacy protects the *unexercised* allowlist and the cap, not the fact of a
-payment you make. (b) A policy **rotation** is observable: `rotate_policy` emits an event and the stored
-`policy_commitment`/`allowlist_root` change, so an observer learns the policy *changed* — never its
-*content*.
+payment you make. (b) A policy **rotation** is observable and timelocked: `propose_rotation` emits an event
+(with the unlock ledger) and `execute_rotation` later changes the stored `policy_commitment`/`allowlist_root`,
+so an observer learns the policy *changed* — never its *content*.
 
 ---
 
@@ -120,23 +122,30 @@ artifact that leaves the browser. A compromised browser session can drain the ac
 payment, only to allowlisted destinations** — it cannot exceed the cap or the allowlist.
 
 ### The admin key — the primary trust root
-The admin can call `rotate_policy(new_commitment, new_root)` and then supply a proof for the new policy.
-This is **two observable, event-emitting on-chain steps** — it cannot be done silently. The admin can also
-`freeze()` to halt spending and `unfreeze()` to restore it.
+Rotating the committed policy is a **timelocked, two-step** operation: the admin calls
+`propose_rotation(new_commitment, new_root)`, which stages the change and emits an event with an
+`unlock_ledger = now + rotation_delay`; only after the delay can the admin call `execute_rotation()` to
+apply it. The admin can also `freeze()` to halt spending and `unfreeze()` to restore it, and
+`cancel_rotation()` to drop a staged change.
 
 - The admin **cannot spend in one step** — every spend requires a valid proof for the *currently committed*
   policy, and the admin holds no policy secret by default. A non-admin (and an admin acting alone, without a
   proof) **cannot** move funds directly.
-- **But** the admin **can** rotate the committed policy to one whose secret it controls, then produce a valid
-  proof for that policy and spend. **A malicious or compromised admin can therefore drain the account in two
-  on-chain-visible steps.** Treat the admin key as a full governance trust root.
+- **The admin can still rotate-then-spend**, but no longer instantly: it must `propose_rotation` to a policy
+  whose secret it controls, **wait out `rotation_delay` ledgers**, `execute_rotation`, then prove and spend.
+  The proposal is public and event-emitting for the entire delay window, during which any monitor can react —
+  `freeze()` the account, or withdraw funds under the still-current policy before the new one takes effect.
+  This bounds, but does not eliminate, the trust in the admin key: **treat it as a governance trust root**,
+  now rate-limited by the timelock.
 - `freeze` is a **denial/safety lever** — it cannot steal, but it can deny. Evidence: freeze SUCCESS
   `bea27046…`, frozen-spend FAILED #17 `071294a4…`, unfreeze SUCCESS `8d9113b4…` (REPORT_GOVERNANCE.md).
 
-**Hardening — documented, NOT built:** an M-of-N multisig admin, a timelock on `rotate_policy`/`freeze`, and
-epoch-versioned rotation with a previous-epoch grace window. The documented end-state replaces the admin key
-with a Passkey-Kit biometric account (no seed phrase) plus a timelock. Until those ship, the single-key admin
-is a full governance trust root.
+**Hardening — remaining, NOT built:** an M-of-N **multisig admin** (so a single compromised key cannot
+propose a rotation) and epoch-versioned rotation with a previous-epoch grace window. The documented end-state
+replaces the admin key with a Passkey-Kit biometric account (no seed phrase). The `rotate_policy` **timelock
+is now built** (`propose_rotation`/`execute_rotation`, `rotation_delay` set at construction, rejected below
+delay with `RotationLocked` #22); until multisig ships, the single-key admin — timelock notwithstanding — is
+still a governance trust root.
 
 ### The disclosure authority (Tier-1)
 The disclosure proof (§11) shows `cap ≤ regulatory_max` bound to the account's real commitment, but the
@@ -179,8 +188,13 @@ test. We do not claim such a cargo test exists.
 ## 7. What is mocked / self-hosted (explicit)
 
 - **Agent service-payment path:** a self-hosted, allowlisted "service-payment" path — **NOT** the strict x402
-  wire protocol (disclosed). The agent LLM is a real Claude (via the `claude` CLI) running server-side as an
-  operator instance that holds a policy secret; a demo fee-payer submits the txs (REPORT_AGENT_DECK.md).
+  wire protocol (disclosed). The **deployed** Agent Desk (`server.mjs` `/api/agent`) uses a **Groq LLM when
+  `GROQ_API_KEY` is set, and a deterministic regex parser fallback otherwise** (the `/api/health` response
+  reports which: `agent: "groq" | "fallback"`). The LLM is **only an intent translator** — it turns English
+  into `{action, to, amount}`; it is **not** the guardrail. An out-of-policy instruction is *attempted* and
+  then **cryptographically rejected by the account** (no proof can be formed), which is the whole point. A
+  separate legacy driver (`scripts/agent_server.mjs`) wraps a real Claude via the `claude` CLI; it is **not**
+  the deployed entrypoint (REPORT_AGENT_DECK.md).
 - **`regulatory_max` authority:** **self-provided** for the demo (no real anchor/KYC oracle is integrated); the
   oracle-trust assumption is stated (§5).
 - **Relayer / fee-payer:** a demo operator key submits transactions and pays XLM fees (in production, a gasless
@@ -227,11 +241,15 @@ documents intent, while the actual enforcement is the Soroban auth framework. Ev
 
 ## 10. What Nulth does NOT guarantee
 
-**Cumulative spend cap** — each proof is checked independently. A prover can make multiple payments each at
-`amount = cap`. Cumulative enforcement across payments requires on-chain state tracking with concurrent-write
-guarantees — a deliberate design scope boundary.
+**All-time / cross-window cumulative cap** — a **rolling per-window** budget *is* enforced (`EpochCapExceeded`
+#20: `__check_auth` tracks `(epoch_anchor, spent)` and rejects once `spent + amount` would exceed `epoch_cap`
+in the current window — §13). What is **not** guaranteed is an *absolute lifetime* ceiling: the budget
+**resets each `epoch_ledgers` window**, so spend is bounded per window, not forever. Enforcement is also
+**sequential per-account** (read-your-writes within a transaction); it deliberately does not attempt a
+cross-account or lock-free concurrent-write guarantee. An all-time cap or multi-account budget remains a
+scope boundary.
 
-**Prover anonymity** — the source account is `from == self` (the CovenantAccount address). Observers know which
+**Prover anonymity** — the source account is `from == self` (the NulthAccount address). Observers know which
 account paid, and to whom. Only the *policy details* (cap value, unexercised allowlist members) are private.
 
 **Admin-less operation** — the admin role cannot be removed; it can only be transferred or hardened (multisig,
@@ -274,8 +292,9 @@ typically much larger than any operationally meaningful cap granularity. This is
   is a privacy pool's job (PROTOCOL.md §5). Nulth hides the **policy**.
 - **Formal audit** — **not done.** This is **testnet only**; mainnet was deliberately **held pending audit** (the
   UI Mainnet tab is disabled with that note). No mainnet deployment is claimed.
-- **Hardening modules** — multisig + timelock admin, epoch-grace rotation, a multi-party phase-2 ceremony, and a
-  PQ verifier are **documented, not built.**
+- **Hardening modules** — a **multisig admin**, epoch-grace rotation, a multi-party phase-2 ceremony, and a
+  PQ verifier are **documented, not built.** (The `rotate_policy` **timelock** and the **cumulative epoch
+  budget** are now **built** — see §13.)
 - **Availability vs a malicious admin or relayer** — not guaranteed: a malicious admin can `freeze` (deny
   spending) and a malicious relayer/RPC can refuse to submit/serve. Neither can **steal**.
 
@@ -285,9 +304,10 @@ typically much larger than any operationally meaningful cap granularity. This is
 
 | Limitation | Hardening | Status |
 |------------|-----------|--------|
-| Admin is a single key | Passkey-Kit biometric account as admin | Documented, not built |
-| No timelock on `rotate_policy` | Add a timelock-contract delay | Documented, not built |
-| No cumulative budget enforcement | On-chain payment counter with ordered nonces | Designed, not built |
+| Admin is a single key | M-of-N multisig admin (so one compromised key can't propose a rotation) | Documented, not built |
+| Instant `rotate_policy` (drain in two steps) | Timelocked `propose_rotation → delay → execute_rotation` | **Built** — `RotationLocked` #22, `rotation_delay` at construction |
+| No cumulative budget (N proofs × cap) | Rolling per-window spend budget in contract storage | **Built** — `EpochCapExceeded` #20, `(epoch_ledgers, epoch_cap)` at construction |
+| Multisig can't stop a compromised single admin | Passkey-Kit biometric account + multisig | Documented, not built |
 | Tier-2 allowlist subset proof | ZK subset containment (Merkle intersection) | Step-4 recon, not built |
 | Single-contributor phase-2 setup | Multi-party phase-2 ceremony (or transparent setup) | Documented, not built |
 | Not post-quantum | Hash-based / STARK verifier | Future work, not built |
