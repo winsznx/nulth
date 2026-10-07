@@ -23,7 +23,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: 'Nulth account — proof-authorized Soroban smart account'
       relative_path: 'contracts'
-      package: 'covenant-account'
+      package: 'nulth-account'
       home_domain: 'nulth.xyz'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
@@ -34,7 +34,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: 'Nulth BN254 Groth16 verifier'
       relative_path: 'contracts'
-      package: 'covenant-verifier'
+      package: 'nulth-verifier'
       home_domain: 'nulth.xyz'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
