@@ -82,5 +82,5 @@
   ]);
   const pubVecScVal = (pub) => SDK.xdr.ScVal.scvVec(pub.map(u256ScVal));
 
-  window.CovenantSerialize = { decToBe32, g1Bytes, g2Bytes, u256ScVal, proofSigScVal, payloadHalves, sorobanAuthPayload, vkScVal, proofScVal, pubVecScVal };
+  window.NulthSerialize = { decToBe32, g1Bytes, g2Bytes, u256ScVal, proofSigScVal, payloadHalves, sorobanAuthPayload, vkScVal, proofScVal, pubVecScVal };
 })();

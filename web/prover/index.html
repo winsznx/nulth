@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Covenant — DEPTH-16 in-browser prover</title>
+  <title>Nulth — DEPTH-16 in-browser prover</title>
   <style>body{font:14px/1.5 ui-monospace,monospace;margin:2rem;max-width:60rem}pre{background:#111;color:#0f0;padding:1rem;white-space:pre-wrap;border-radius:8px}button{font:inherit;padding:.6rem 1rem}</style>
 </head>
 <body>
-  <h1>Covenant — client-side DEPTH-16 Groth16 proving</h1>
+  <h1>Nulth — client-side DEPTH-16 Groth16 proving</h1>
   <p>Private inputs (cap, salt, allowlist path) never leave this browser. snarkjs runs the
      65,536-slot policy circuit and emits a <code>ProofSig</code> entirely client-side — the seed of the §14 zero-terminal prover.</p>
   <button id="run">Generate proof in browser</button>
@@ -34,11 +34,11 @@
         log('verify: ' + ok);
         log('memory: ' + heap);
         log('public: ' + JSON.stringify(publicSignals));
-        window.__COVENANT_RESULT__ = { ms, ok, heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null };
+        window.__NULTH_RESULT__ = { ms, ok, heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null };
         document.title = 'DONE ' + ms + 'ms';
       } catch (e) {
         out.textContent = 'ERROR: ' + (e && e.message ? e.message : e);
-        window.__COVENANT_RESULT__ = { error: String(e && e.message ? e.message : e) };
+        window.__NULTH_RESULT__ = { error: String(e && e.message ? e.message : e) };
         document.title = 'ERROR';
       }
     }

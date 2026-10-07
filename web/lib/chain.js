@@ -2,7 +2,7 @@
 // Ported from the proven scripts/pay_p1.mjs (don't reinvent the crypto).
 (function () {
   const SDK = window.StellarSdk;
-  const C = window.COVENANT;
+  const C = window.NULTH;
   const rpc = new SDK.rpc.Server(C.rpcUrl);
   const PASS = C.networkPassphrase;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -12,7 +12,7 @@
   let _active = { account: C.account, secret: null };
   function setActive(account, secret) {
     _active = { account: account || C.account, secret: secret || null };
-    if (window.CovenantProver) { if (_active.secret) window.CovenantProver.setSecret(_active.secret); else window.CovenantProver.useDemo(); }
+    if (window.NulthProver) { if (_active.secret) window.NulthProver.setSecret(_active.secret); else window.NulthProver.useDemo(); }
   }
   function activeAccount() { return _active.account; }
   function isDemo() { return _active.account === C.account; }
@@ -28,7 +28,7 @@
     return _relay;
   }
 
-  function feePayerSecret() { return window.COVENANT_SECRET && window.COVENANT_SECRET.feePayer; }
+  function feePayerSecret() { return window.NULTH_SECRET && window.NULTH_SECRET.feePayer; }
   // A funded classic account used only as the source for read-only simulations.
   function readSourcePub() {
     const s = feePayerSecret();
@@ -132,8 +132,8 @@
 
     step('reading dest_field');
     const df = await destField(destAddr);
-    await window.CovenantProver.load();
-    const pre = window.CovenantProver.precheck(amountStroops, df);
+    await window.NulthProver.load();
+    const pre = window.NulthProver.precheck(amountStroops, df);
     if (!pre.ok) { const e = new Error('refused'); e.reason = pre.reason; throw e; } // no tx forms
 
     step('simulating');
@@ -146,17 +146,17 @@
       return c.switch() === SDK.xdr.SorobanCredentialsType.sorobanCredentialsAddress() &&
         SDK.Address.fromScAddress(c.address().address()).toString() === _active.account;
     });
-    if (!entry) throw new Error('no auth entry for covenant account');
+    if (!entry) throw new Error('no auth entry for nulth account');
     const exp = sim.latestLedger + 60;
     const nonce = BigInt(Date.now());
     entry.credentials().address().nonce(SDK.xdr.Int64.fromString(nonce.toString()));
     entry.credentials().address().signatureExpirationLedger(exp);
 
-    const payload = window.CovenantSerialize.sorobanAuthPayload(entry, PASS);
-    const { hi, lo } = window.CovenantSerialize.payloadHalves(payload);
+    const payload = window.NulthSerialize.sorobanAuthPayload(entry, PASS);
+    const { hi, lo } = window.NulthSerialize.payloadHalves(payload);
     step('proving');
-    const { proof, publicSignals, ms } = await window.CovenantProver.prove(amountStroops, df, hi, lo);
-    entry.credentials().address().signature(window.CovenantSerialize.proofSigScVal(proof, publicSignals, 'c1c0'));
+    const { proof, publicSignals, ms } = await window.NulthProver.prove(amountStroops, df, hi, lo);
+    entry.credentials().address().signature(window.NulthSerialize.proofSigScVal(proof, publicSignals, 'c1c0'));
 
     // read-only sim of the signed tx to surface the verify cost (and validate the proof) either way
     src = await rpc.getAccount(srcPub);
@@ -188,7 +188,7 @@
   let _discVk = null;
   async function verifyDisclosure(proof, publicSignals) {
     if (!_discVk) _discVk = await fetch(C.discVk, { cache: 'no-store' }).then((r) => r.json());
-    const S = window.CovenantSerialize;
+    const S = window.NulthSerialize;
     const op = SDK.Operation.invokeContractFunction({
       contract: C.verifier, function: 'verify_proof',
       args: [S.vkScVal(_discVk, 'c1c0'), S.proofScVal(proof, 'c1c0'), S.pubVecScVal(publicSignals)],
@@ -206,7 +206,7 @@
   // freeze/unfreeze, but CANNOT move funds. The admin signs as the transaction source,
   // so the contract's admin.require_auth() is satisfied by SOURCE_ACCOUNT credentials
   // (the envelope signature) — no Soroban auth-entry signing needed.
-  function adminSecret() { return window.COVENANT_SECRET && window.COVENANT_SECRET.admin; }
+  function adminSecret() { return window.NULTH_SECRET && window.NULTH_SECRET.admin; }
 
   // Admin governance on the ACTIVE account. Demo account: signed by the embedded admin-key
   // (secrets.local.js). User account: signed by the connected Freighter wallet (the user is admin).
@@ -215,13 +215,13 @@
     const demo = isDemo();
     const kp = demo ? (adminSecret() ? SDK.Keypair.fromSecret(adminSecret()) : null) : null;
     if (demo && !kp) { const e = new Error('no_admin_key'); e.reason = 'no_admin_key'; throw e; }
-    const sourcePub = demo ? kp.publicKey() : await window.CovenantWallet.getAddress();
+    const sourcePub = demo ? kp.publicKey() : await window.NulthWallet.getAddress();
     let src = await rpc.getAccount(sourcePub);
     let tx = new SDK.TransactionBuilder(src, { fee: '2000000', networkPassphrase: PASS }).addOperation(op).setTimeout(120).build();
     const sim = await rpc.simulateTransaction(tx);
     if (SDK.rpc.Api.isSimulationError(sim)) throw new Error(fnName + ' sim: ' + sim.error);
     tx = SDK.rpc.assembleTransaction(tx, sim).build();
-    tx = demo ? (tx.sign(kp), tx) : await window.CovenantWallet.sign(tx);
+    tx = demo ? (tx.sign(kp), tx) : await window.NulthWallet.sign(tx);
     const res = await rpc.sendTransaction(tx);
     let final;
     for (let i = 0; i < 30; i++) { await sleep(2000); final = await rpc.getTransaction(res.hash); if (final.status !== 'NOT_FOUND') break; }
@@ -230,9 +230,22 @@
 
   const adminFreeze = () => adminInvoke('freeze', []);
   const adminUnfreeze = () => adminInvoke('unfreeze', []);
-  const adminRotate = (commitment, root) => adminInvoke('rotate_policy', [
-    window.CovenantSerialize.u256ScVal(commitment), window.CovenantSerialize.u256ScVal(root),
-  ]);
+  // Rotation is timelocked on-chain: propose_rotation records the new policy and an unlock ledger,
+  // execute_rotation is rejected (RotationLocked #22) until that ledger passes. Both are admin-signed.
+  async function adminRotate(commitment, root) {
+    const proposed = await adminInvoke('propose_rotation', [
+      window.NulthSerialize.u256ScVal(commitment), window.NulthSerialize.u256ScVal(root),
+    ]);
+    if (proposed.status !== 'SUCCESS') return proposed;
+    const pending = await simRead(SDK.Operation.invokeContractFunction({ contract: _active.account, function: 'pending_rotation', args: [] }));
+    if (!pending) throw new Error('rotation not pending after propose');
+    for (;;) {
+      const { sequence } = await rpc.getLatestLedger();
+      if (sequence > pending.unlock_ledger) break;
+      await sleep(3000);
+    }
+    return adminInvoke('execute_rotation', []);
+  }
 
   // ---- in-app testnet funding (real on-chain, no mocks) ----
   function operatorPub() { const s = feePayerSecret(); return s ? SDK.Keypair.fromSecret(s).publicKey() : null; }
@@ -254,7 +267,7 @@
     const e = new Error('friendbot_failed'); e.reason = 'friendbot_failed'; e.detail = msg; throw e;
   }
 
-  // Operator seeds testnet USDC into a freshly-created Covenant account so a stranger can pay
+  // Operator seeds testnet USDC into a freshly-created Nulth account so a stranger can pay
   // immediately. The operator (a classic G-account that holds USDC) is the SAC transfer `from`
   // AND the tx source, so transfer's from.require_auth() is satisfied by the envelope signature.
   // (Same shape as scripts/create_user.mjs's seeder transfer.)
@@ -301,7 +314,7 @@
     return r;
   }
 
-  window.CovenantChain = {
+  window.NulthChain = {
     rpc,
     hasOperatorKey: () => !!feePayerSecret() || !!(_relay && _relay.pubkey),
     hasSeedKey: () => !!feePayerSecret(), // seeding needs a LOCAL operator key; the relayer only relays proof-signed transfers

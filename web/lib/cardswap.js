@@ -1,6 +1,6 @@
 // CardSwap — vanilla port of the React Bits component (GSAP 3D auto-swapping card stack).
 // Faithful to the original: makeSlot / placeNow / elastic timeline (drop → promote → return).
-// window.CovenantCardSwap.mount(container, opts) -> { destroy() }.
+// window.NulthCardSwap.mount(container, opts) -> { destroy() }.
 //   opts.cards            array of card DOM nodes (default: container's .cv-cs-card children)
 //   opts.cardDistance     x-spacing (default 60)   opts.verticalDistance  y-spacing (default 70)
 //   opts.delay            ms between swaps (5000)   opts.skewAmount        skewY deg (6)
@@ -122,5 +122,5 @@
     return { setActive, total, destroy() { clickHandlers.forEach(([el, h]) => el.removeEventListener('click', h)); } };
   }
 
-  window.CovenantCardSwap = { mount, mountScroll };
+  window.NulthCardSwap = { mount, mountScroll };
 })();

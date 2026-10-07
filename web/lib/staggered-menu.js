@@ -1,6 +1,6 @@
 // StaggeredMenu — vanilla port of the React Bits component (GSAP). Full-screen mobile nav:
 // colored prelayers slide in, a white panel slides in, big menu items stagger up with numbering.
-// window.CovenantMenu.open({items,socials,accent,colors,onAct}) builds + opens; self-closes on
+// window.NulthMenu.open({items,socials,accent,colors,onAct}) builds + opens; self-closes on
 // item click / close button / click-away. Nulth-tokened.
 (function () {
   const gsap = () => window.gsap;
@@ -104,5 +104,5 @@
     return inst;
   }
 
-  window.CovenantMenu = { open, current: () => inst };
+  window.NulthMenu = { open, current: () => inst };
 })();

@@ -4,7 +4,7 @@
 // Ported from the proven scripts/attack_probe.mjs + attack_submit.mjs. No mocks.
 (function () {
   const SDK = window.StellarSdk;
-  const C = window.COVENANT;
+  const C = window.NULTH;
   const rpc = new SDK.rpc.Server(C.rpcUrl);
   const PASS = C.networkPassphrase;
   const XLM = C.xlmSac;
@@ -33,8 +33,8 @@
     const source = ctx.sourcePub;
     const sac = spec.sac === 'xlm' ? XLM : C.usdcSac;
     const to = spec.to === 'attacker' ? ATTACKER : C.demoPayee;
-    const secret = await window.CovenantProver.loadDemo(); // deck always attacks the shared reference account
-    const dfPayee = await window.CovenantChain.destField(C.demoPayee); // prove the allowlisted dest
+    const secret = await window.NulthProver.loadDemo(); // deck always attacks the shared reference account
+    const dfPayee = await window.NulthChain.destField(C.demoPayee); // prove the allowlisted dest
 
     step('crafting payload');
     // a valid-shaped sim gives us a real auth entry for the account as a fallback
@@ -51,17 +51,17 @@
     const nonce = BigInt(Date.now());
     entry.credentials().address().nonce(SDK.xdr.Int64.fromString(nonce.toString()));
     entry.credentials().address().signatureExpirationLedger((asim.latestLedger || vsim.latestLedger) + 60);
-    const payload = window.CovenantSerialize.sorobanAuthPayload(entry, PASS);
-    const { hi, lo } = window.CovenantSerialize.payloadHalves(payload);
+    const payload = window.NulthSerialize.sorobanAuthPayload(entry, PASS);
+    const { hi, lo } = window.NulthSerialize.payloadHalves(payload);
 
     let salt = secret.salt, commitment = secret.commitment;
     if (spec.wrongSalt) { salt = C.attackWrongSalt; commitment = C.attackWrongCommitment; } // consistent (cap, wrong_salt) -> commitment' != stored
     step('proving (real proof, will be rejected)');
     const input = { amount: AMT.toString(), dest: dfPayee, policy_commitment: commitment, allowlist_root: secret.root, sigpayload_hi: hi, sigpayload_lo: lo, cap: secret.cap, salt, path: secret.path, index_bits: secret.index_bits };
-    const { proof, publicSignals } = await window.CovenantProver.raw(input);
+    const { proof, publicSignals } = await window.NulthProver.raw(input);
     let p = proof;
     if (spec.tamper === 'swap_ac') p = Object.assign({}, proof, { pi_a: proof.pi_c, pi_c: proof.pi_a });
-    entry.credentials().address().signature(window.CovenantSerialize.proofSigScVal(p, publicSignals, 'c1c0'));
+    entry.credentials().address().signature(window.NulthSerialize.proofSigScVal(p, publicSignals, 'c1c0'));
     if (spec.tamper === 'fresh_nonce') entry.credentials().address().nonce(SDK.xdr.Int64.fromString((nonce + 1n).toString()));
 
     step('submitting via relayer (real rejected tx)');
@@ -70,5 +70,5 @@
     return { code, codeName: NAMES[code] || null, expect: spec.expect, txHash: out.txHash, status: out.status, instr: out.instr != null ? out.instr : null };
   }
 
-  window.CovenantAttacks = { run, SPEC, NAMES };
+  window.NulthAttacks = { run, SPEC, NAMES };
 })();

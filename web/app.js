@@ -8,7 +8,7 @@
  */
 'use strict';
 
-const CFG = window.COVENANT;
+const CFG = window.NULTH;
 const trunc = (a) => (a && a.length > 16) ? a.slice(0, 8) + '···' + a.slice(-7) : (a || '');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const txUrl = (h) => CFG.explorer + '/tx/' + h;
@@ -56,15 +56,15 @@ const App = {
   SCREENS: ['landing','dashboard','pay','policy','activity','agent','breaking','verify','account','create','compare'],
   nav(s){ this._resetScroll=true; try{ if(('#'+s)!==location.hash) location.hash=s; }catch(e){} this.setState({screen:s}); },
   setEnv(e){ if(e==='mainnet') return; this.setState({env:e}); }, // mainnet held until post-audit
-  acct(){ return window.CovenantChain.activeAccount(); },
-  isDemoAcct(){ return window.CovenantChain.isDemo(); },
+  acct(){ return window.NulthChain.activeAccount(); },
+  isDemoAcct(){ return window.NulthChain.isDemo(); },
 
   async loadChain(){
     const L=this.live;
     try{
       // operator's private policy (local secret) — for the operator's own Policy view
-      try{ const s=await window.CovenantProver.load(); L.secret={cap:s.cap,salt:s.salt,destLeaf:s.destLeaf}; }catch(e){ L.secret=null; }
-      const ch=window.CovenantChain;
+      try{ const s=await window.NulthProver.load(); L.secret={cap:s.cap,salt:s.salt,destLeaf:s.destLeaf}; }catch(e){ L.secret=null; }
+      const ch=window.NulthChain;
       const [bal,pbal,pol]=await Promise.all([
         ch.sacBalance(this.acct()).catch(()=>null),
         ch.sacBalance(CFG.demoPayee).catch(()=>null),
@@ -85,17 +85,17 @@ const App = {
     try{ await navigator.clipboard.writeText(text); this.pay={...this.pay,copied:true}; this.render(); this._t(()=>{ this.pay={...this.pay,copied:false}; this.render(); },2000); }
     catch(e){ try{ window.prompt('Copy this receipt:', text); }catch(_){} }
   },
-  async refreshBalances(){ const ch=window.CovenantChain; const [a,b]=await Promise.all([ch.sacBalance(this.acct()).catch(()=>null),ch.sacBalance(CFG.demoPayee).catch(()=>null)]); this.live.balance=a; this.live.payeeBalance=b; },
+  async refreshBalances(){ const ch=window.NulthChain; const [a,b]=await Promise.all([ch.sacBalance(this.acct()).catch(()=>null),ch.sacBalance(CFG.demoPayee).catch(()=>null)]); this.live.balance=a; this.live.payeeBalance=b; },
 
   // ---------- the live Pay flow ----------
   async runPay(){
-    if(!window.CovenantChain.hasOperatorKey()){ this.pay={phase:'error',error:'no_operator_key',step:'',result:null,refusedReason:'',before:null,after:null}; this.render(); return; }
+    if(!window.NulthChain.hasOperatorKey()){ this.pay={phase:'error',error:'no_operator_key',step:'',result:null,refusedReason:'',before:null,after:null}; this.render(); return; }
     const amtEl=document.getElementById('pay-amount'), destEl=document.getElementById('pay-dest');
     const amount=amtEl?amtEl.value:'1.0'; const destAddr=(destEl?destEl.value:CFG.demoPayee).trim();
     const n=Number(amount);
     if(!(n>0)){ this.pay={phase:'error',error:'Enter a positive amount.',step:''}; this.render(); return; }
     const amountStroops=BigInt(Math.round(n*1e7));
-    const ch=window.CovenantChain;
+    const ch=window.NulthChain;
     const before={acc:await ch.sacBalance(this.acct()).catch(()=>null), payee:await ch.sacBalance(destAddr).catch(()=>null)};
     this.pay={phase:'running',step:'starting',result:null,refusedReason:'',error:'',before,after:null,amount,destAddr};
     this.render();
@@ -122,8 +122,8 @@ const App = {
     if(!commitment){ this.disc={phase:'error',limit,result:null,error:'policy not loaded yet'}; this.render(); return; }
     this.disc={phase:'proving',limit,result:null,error:''}; this.render();
     try{
-      const {proof,publicSignals,ms}=await window.CovenantProver.proveDisclosure(commitment, limitStroops);
-      const v=await window.CovenantChain.verifyDisclosure(proof, publicSignals);
+      const {proof,publicSignals,ms}=await window.NulthProver.proveDisclosure(commitment, limitStroops);
+      const v=await window.NulthChain.verifyDisclosure(proof, publicSignals);
       this.disc={phase:v.ok?'verified':'error',limit,result:{ms,insns:v.insns,commitment},error:v.ok?'':'on-chain verify returned false'};
       this.render();
     }catch(e){
@@ -164,7 +164,7 @@ const App = {
     const amountStroops=BigInt(Math.round(amt*1e7));
     const card={role:'action',kind:'pending',to,amount:amt,step:'starting'}; a.thread.push(card); this.render(); this.scrollAgent();
     try{
-      const res=await window.CovenantChain.pay({amountStroops,destAddr:to,onStep:(s)=>{card.step=s;this.render();this.scrollAgent();}});
+      const res=await window.NulthChain.pay({amountStroops,destAddr:to,onStep:(s)=>{card.step=s;this.render();this.scrollAgent();}});
       if(res.status==='SUCCESS'){ Object.assign(card,{kind:'paid',hash:res.hash,instr:res.declaredInstr,proveMs:res.proveMs}); a.thread.push({role:'agent',text:'Done — settled on-chain.'}); }
       else { Object.assign(card,{kind:'error',text:'Transaction '+res.status,hash:res.hash}); }
     }catch(e){
@@ -177,15 +177,15 @@ const App = {
   },
   async runAttack(id){
     if(this.state.deck[id]&&this.state.deck[id].status==='running') return;
-    const relay=await window.CovenantChain.relayerInfo();
+    const relay=await window.NulthChain.relayerInfo();
     if(!relay||!relay.pubkey){ this.setState(s=>({deck:{...s.deck,[id]:{status:'error',error:'attack runner offline — the relayer is unavailable'}}})); return; }
     this.setState(s=>({deck:{...s.deck,[id]:{status:'running',step:'starting'}}}));
-    const ctx={ sourcePub:relay.pubkey, submit:(b)=>window.CovenantChain.submitAttack(b) };
+    const ctx={ sourcePub:relay.pubkey, submit:(b)=>window.NulthChain.submitAttack(b) };
     // one safe auto-retry: attacks always fail (no valid proof), so re-submitting on a transient
     // network/RPC error can never move funds — it just makes the demo resilient to a cold-call flake.
     for(let attempt=0; attempt<2; attempt++){
       try{
-        const res=await window.CovenantAttacks.run(id, ctx, (step)=>{ this.state.deck[id]={status:'running',step:(attempt?'retrying · ':'')+step}; this.render(); });
+        const res=await window.NulthAttacks.run(id, ctx, (step)=>{ this.state.deck[id]={status:'running',step:(attempt?'retrying · ':'')+step}; this.render(); });
         this.setState(s=>({deck:{...s.deck,[id]:{...res, status:'rejected', txStatus:res.status}}}));
         return;
       }catch(e){ if(attempt===0) continue; this.setState(s=>({deck:{...s.deck,[id]:{status:'error',error:String(e&&e.message||e)}}})); }
@@ -196,7 +196,7 @@ const App = {
   // ---------- Governance: real admin-signed freeze / unfreeze / rotate ----------
   async runAdmin(action){
     if(this.admin.phase==='running') return;
-    if(!window.CovenantChain.hasAdminKey()){ this.admin={phase:'error',action,result:null,error:'no_admin_key'}; this.render(); return; }
+    if(!window.NulthChain.hasAdminKey()){ this.admin={phase:'error',action,result:null,error:'no_admin_key'}; this.render(); return; }
     let commitment, root;
     if(action==='rotate'){
       const cEl=document.getElementById('rot-commit'), rEl=document.getElementById('rot-root');
@@ -206,10 +206,10 @@ const App = {
     this.admin={phase:'running',action,result:null,error:''}; this.render();
     try{
       let res;
-      if(action==='freeze') res=await window.CovenantChain.adminFreeze();
-      else if(action==='unfreeze') res=await window.CovenantChain.adminUnfreeze();
-      else if(action==='rotate') res=await window.CovenantChain.adminRotate(commitment, root);
-      this.live.policy=await window.CovenantChain.readPolicy().catch(()=>this.live.policy);
+      if(action==='freeze') res=await window.NulthChain.adminFreeze();
+      else if(action==='unfreeze') res=await window.NulthChain.adminUnfreeze();
+      else if(action==='rotate') res=await window.NulthChain.adminRotate(commitment, root);
+      this.live.policy=await window.NulthChain.readPolicy().catch(()=>this.live.policy);
       this.admin={phase: res.status==='SUCCESS'?'done':'error', action, result:res, error: res.status==='SUCCESS'?'':('transaction '+res.status)};
       this.render();
     }catch(e){
@@ -219,8 +219,8 @@ const App = {
   },
   // ---------- Self-serve account creation (client-side policy + Freighter deploy) ----------
   async connectWallet(){
-    if(!window.CovenantWallet.available()){ this.create={...this.create,error:'Freighter not detected — install the Freighter extension to create your own account.'}; this.render(); return; }
-    try{ const addr=await window.CovenantWallet.connect(); this.create={...this.create,wallet:addr,error:''}; this.render(); }
+    if(!window.NulthWallet.available()){ this.create={...this.create,error:'Freighter not detected — install the Freighter extension to create your own account.'}; this.render(); return; }
+    try{ const addr=await window.NulthWallet.connect(); this.create={...this.create,wallet:addr,error:''}; this.render(); }
     catch(e){ this.create={...this.create,error:e&&e.reason==='not_installed'?'Freighter not installed.':'Wallet connection declined.'}; this.render(); }
   },
   setCap(v){ this.create.cap=v; },
@@ -242,13 +242,13 @@ const App = {
     const pass=c.pass;
     this.create={...c,phase:'running',step:'computing policy (in your browser)',error:'',policy:null,result:null}; this.render();
     try{
-      const policy=window.CovenantCreate.buildPolicy(capN, allow); // fully client-side: salt, commitment, root — no RPC
+      const policy=window.NulthCreate.buildPolicy(capN, allow); // fully client-side: salt, commitment, root — no RPC
       this.create={...this.create,policy,step:'deploying your account'}; this.render();
-      const res=await window.CovenantCreate.deploy(c.wallet, policy, (s)=>{ this.create={...this.create,step:s}; this.render(); });
+      const res=await window.NulthCreate.deploy(c.wallet, policy, (s)=>{ this.create={...this.create,step:s}; this.render(); });
       if(res.status!=='SUCCESS'){ this.create={...this.create,phase:'error',error:'Deploy tx '+res.status,result:res}; this.render(); return; }
-      const fullKs=window.CovenantCreate.makeKeystore(res.account, c.wallet, policy);   // decrypted, in-memory
-      const encKs=await window.CovenantCreate.seal(fullKs, pass);                        // AES-256-GCM at rest
-      window.CovenantCreate.saveLocal(encKs); window.CovenantCreate.download(encKs); window.CovenantCreate.saveUnlocked(fullKs);
+      const fullKs=window.NulthCreate.makeKeystore(res.account, c.wallet, policy);   // decrypted, in-memory
+      const encKs=await window.NulthCreate.seal(fullKs, pass);                        // AES-256-GCM at rest
+      window.NulthCreate.saveLocal(encKs); window.NulthCreate.download(encKs); window.NulthCreate.saveUnlocked(fullKs);
       this.create={...this.create,phase:'done',result:res,keystore:fullKs,pass:''};
       this.render();
     }catch(e){ this.create={...this.create,phase:'error',error:String(e&&e.message||e)}; this.render(); }
@@ -256,12 +256,12 @@ const App = {
   // preview the client-side policy WITHOUT deploying (proves secrets are computed locally; testable headless)
   async previewPolicy(){
     const allow=this._allowClean(); const capN=Number(this.create.cap);
-    const policy=window.CovenantCreate.buildPolicy(capN, allow); // fully client-side, no network
+    const policy=window.NulthCreate.buildPolicy(capN, allow); // fully client-side, no network
     this.create={...this.create,policy}; this.render(); return policy;
   },
   enterCreatedAccount(){
     const ks=this.create.keystore; if(!ks) return;
-    window.CovenantChain.setActive(ks.account, ks);
+    window.NulthChain.setActive(ks.account, ks);
     this.active={account:ks.account,label:'Your account',isDemo:false,keystore:ks};
     try{ localStorage.setItem('nulth.active', ks.account); }catch(e){}
     this.create={phase:'idle',step:'',wallet:this.create.wallet,cap:'30',allowlist:[''],policy:null,result:null,error:'',keystore:null};
@@ -269,17 +269,17 @@ const App = {
     this.state.payDest=null; this.nav('dashboard'); this.loadChain();
   },
   async switchAccount(account){
-    if(!account||account===CFG.account){ window.CovenantChain.setActive(CFG.account,null); this.active={account:CFG.account,label:'Demo (shared reference)',isDemo:true,keystore:null}; try{ localStorage.removeItem('nulth.active'); }catch(e){} }
+    if(!account||account===CFG.account){ window.NulthChain.setActive(CFG.account,null); this.active={account:CFG.account,label:'Demo (shared reference)',isDemo:true,keystore:null}; try{ localStorage.removeItem('nulth.active'); }catch(e){} }
     else {
-      let full=window.CovenantCreate.loadUnlocked(account); // decrypted this session?
+      let full=window.NulthCreate.loadUnlocked(account); // decrypted this session?
       if(!full){
-        const enc=window.CovenantCreate.loadLocal(account); if(!enc) return;
+        const enc=window.NulthCreate.loadLocal(account); if(!enc) return;
         if(enc.enc){ const pass=window.prompt('Enter the passphrase to unlock '+account.slice(0,8)+'…'); if(!pass) return;
-          try{ full=await window.CovenantCreate.unlock(enc, pass); window.CovenantCreate.saveUnlocked(full); }
+          try{ full=await window.NulthCreate.unlock(enc, pass); window.NulthCreate.saveUnlocked(full); }
           catch(e){ this.create={...this.create,error:'Wrong passphrase — could not unlock the keystore.'}; this.nav('create'); return; } }
         else { full=enc; } // legacy plaintext keystore
       }
-      window.CovenantChain.setActive(account, full); this.active={account,label:'Your account',isDemo:false,keystore:full}; try{ localStorage.setItem('nulth.active', account); }catch(e){}
+      window.NulthChain.setActive(account, full); this.active={account,label:'Your account',isDemo:false,keystore:full}; try{ localStorage.setItem('nulth.active', account); }catch(e){}
     }
     this.live={loading:true,error:null,balance:null,payeeBalance:null,policy:null,activity:null,secret:this.live.secret};
     this.state.payDest=null; this.nav('dashboard'); this.loadChain();
@@ -295,7 +295,7 @@ const App = {
         if(!json||!json.account||!json.commitment){ this.create={...this.create,error:'Not a valid Nulth keystore file.'}; this.nav('create'); return; }
         if((json.network&&json.network!==CFG.network)||(json.verifier&&json.verifier!==CFG.verifier)||(json.token&&json.token!==CFG.usdcSac)){ this.create={...this.create,error:'This keystore is for a different network or deployment (verifier/token mismatch) — it can\'t be used here.'}; this.nav('create'); return; }
         let pass=null; if(json.enc){ pass=window.prompt('Enter the passphrase for this keystore'); if(!pass) return; }
-        const full=await window.CovenantCreate.importKeystore(json, pass); await this.switchAccount(full.account);
+        const full=await window.NulthCreate.importKeystore(json, pass); await this.switchAccount(full.account);
       }catch(e){ this.create={...this.create,error:'Invalid keystore or wrong passphrase.'}; this.nav('create'); } };
     inp.click();
   },
@@ -381,8 +381,8 @@ const App = {
     // scroll-driven showcase stack (the reduced-motion markup has no #cv-cardswap, so this no-ops there)
     const cont=document.getElementById('cv-cardswap'); const sec=document.getElementById('cv-showcase');
     let stack=null, secTop=0, span=1;
-    if(cont && sec && window.CovenantCardSwap && window.gsap && window.CovenantCardSwap.mountScroll){
-      stack=window.CovenantCardSwap.mountScroll(cont, { cardDistance:38, verticalDistance:44, skewAmount:6,
+    if(cont && sec && window.NulthCardSwap && window.gsap && window.NulthCardSwap.mountScroll){
+      stack=window.NulthCardSwap.mountScroll(cont, { cardDistance:38, verticalDistance:44, skewAmount:6,
         onCardClick:(i)=>{ const c=this.showcaseCards()[i]; if(c) this.nav(c.id); } });
       this._cardswap=stack;
     }
@@ -399,29 +399,30 @@ const App = {
   },
   scrollToEl(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth', block:'start'}); },
   toggleMenu(){
-    if(!window.CovenantMenu) return;
-    if(window.CovenantMenu.current()){ window.CovenantMenu.current().close(); return; }
+    if(!window.NulthMenu) return;
+    if(window.NulthMenu.current()){ window.NulthMenu.current().close(); return; }
     const onLanding=this.state.screen==='landing';
     const items = onLanding
       ? [{label:'See it',act:'scroll:cv-showcase'},{label:'How it works',act:'scroll:cv-how'},{label:'Read the tech',act:'scroll:cv-how'},{label:'Try the live demo',act:'nav:dashboard'},{label:'Create an account',act:'nav:create'}]
       : this.vals().navGroups.flatMap(g=>g.items.map(it=>({label:it.label,act:'nav:'+it.id})));
-    window.CovenantMenu.open({ items, position:'right', colors:['#16C088','#0B0B0C'], accent:'#0E9466', numbering:true, onAct:(act)=>this.dispatch(act) });
+    items.push({label:'Documentation ↗',act:'docs'});
+    window.NulthMenu.open({ items, position:'right', colors:['#16C088','#0B0B0C'], accent:'#0E9466', numbering:true, onAct:(act)=>this.dispatch(act) });
   },
 
   // ---------- in-app testnet funding + waitlist ----------
   async fundWalletXlm(){
     const c=this.create; if(!c.wallet){ this.create={...c,error:'Connect your Freighter wallet first.'}; this.render(); return; }
     this.fund={...this.fund, xlm:'running', err:''}; this.render();
-    try{ const r=await window.CovenantChain.friendbotFund(c.wallet);
+    try{ const r=await window.NulthChain.friendbotFund(c.wallet);
       this.fund={...this.fund, xlm:(r.status==='already'?'already':'funded'), xlmTx:r.hash||null}; this.render(); }
     catch(e){ const reason=e&&e.reason; this.fund={...this.fund, xlm:(reason==='rate_limited'?'rate_limited':'error'), err:(reason||String(e&&e.message||e))}; this.render(); }
   },
   async runSeed(target){
     const acct=target || (this.create.result&&this.create.result.account) || this.acct();
-    if(!window.CovenantChain.hasSeedKey()){ this.fund={...this.fund, usdc:'nooperator'}; this.render(); return; }
+    if(!window.NulthChain.hasSeedKey()){ this.fund={...this.fund, usdc:'nooperator'}; this.render(); return; }
     this.fund={...this.fund, usdc:'running', err:''}; this.render();
     try{ const amt=BigInt(Math.round(Number(CFG.seedUsdc||'2')*1e7));
-      const r=await window.CovenantChain.seedUsdc(acct, amt);
+      const r=await window.NulthChain.seedUsdc(acct, amt);
       await this.refreshBalances();
       this.fund={...this.fund, usdc:(r.status==='SUCCESS'?'funded':'error'), usdcTx:r.hash||null}; this.render(); }
     catch(e){ this.fund={...this.fund, usdc:'error', err:String(e&&e.message||e)}; this.render(); }
@@ -429,7 +430,7 @@ const App = {
   async submitWaitlist(){ const el=document.getElementById('cv-wl'); const email=((el&&el.value)||'').trim();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ this.wl={status:'bad',email}; this.render(); return; }
     this.wl={status:'sending',email}; this.render();
-    try{ await window.CovenantChain.submitWaitlist(email); this.wl={status:'ok',email}; } // success only if the server durably persisted the lead
+    try{ await window.NulthChain.submitWaitlist(email); this.wl={status:'ok',email}; } // success only if the server durably persisted the lead
     catch(e){ this.wl={status:'err',email}; }
     this.render();
   },
@@ -453,7 +454,7 @@ const App = {
       +(x==='rate_limited'?'<div style="margin-top:9px;font-size:11.5px;color:#7a5b1e">Friendbot is rate-limited — wait a moment and retry, or use <a href="'+CFG.friendbotUrl+'" target="_blank" style="color:#7a5b1e">friendbot.stellar.org</a> manually.</div>':'')
       +(x==='error'?'<div style="margin-top:9px;font-size:11.5px;color:#B42318">Friendbot couldn’t fund this address'+(f.err?' ('+f.err+')':'')+'. Use the manual friendbot or Circle faucet above.</div>':'')
       +'</div>'; },
-  seedRow(target){ const f=this.fund; const u=f.usdc; const hasOp=window.CovenantChain.hasSeedKey(); const act=target?('seed:'+target):'seed';
+  seedRow(target){ const f=this.fund; const u=f.usdc; const hasOp=window.NulthChain.hasSeedKey(); const act=target?('seed:'+target):'seed';
     if(u==='funded') return '<div style="margin-top:13px;display:flex;align-items:center;gap:9px;font-size:12.5px;color:#07623F;background:#E7F6EF;border-radius:10px;padding:11px 13px">'+icon('check',{w:15,h:15})+'<span>Seeded '+CFG.seedUsdc+' test USDC'+(f.usdcTx?' · <a href="'+txUrl(f.usdcTx)+'" target="_blank" style="color:#07623F">tx ↗</a>':'')+' — you can make a real payment now.</span></div>';
     return '<div style="margin-top:13px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
       +(hasOp?'<button data-act="'+act+'" '+(u==='running'?'disabled':'')+' style="font-size:13px;font-weight:550;color:#fff;background:'+(u==='running'?'#c4c4ca':'#0E9466')+';border:none;padding:11px 16px;border-radius:10px;cursor:'+(u==='running'?'wait':'pointer')+'">'+(u==='running'?'seeding…':'Seed '+CFG.seedUsdc+' test USDC →')+'</button>':'')
@@ -467,7 +468,7 @@ const App = {
     const col=(title,items)=>'<div><div class="cv-mono" style="font-size:11px;font-weight:600;letter-spacing:.1em;color:#a1a1aa;margin-bottom:15px">'+title+'</div><div style="display:flex;flex-direction:column;gap:11px">'+items.map(it=>it.href?'<a href="'+it.href+'" target="_blank" style="font-size:14px;color:#3f3f46;text-decoration:none">'+it.t+'</a>':'<span data-act="'+it.act+'" style="font-size:14px;color:#3f3f46;cursor:pointer">'+it.t+'</span>').join('')+'</div></div>';
     const seeIt=[{t:'Privacy X-Ray',act:'nav:compare'},{t:'Jailbreak the agent',act:'nav:agent'},{t:'Break it',act:'nav:breaking'},{t:'Auditor proof',act:'nav:verify'}];
     const useIt=[{t:'Treasury',act:'nav:dashboard'},{t:'Set up an account',act:'nav:create'},{t:'Policy',act:'nav:policy'},{t:'Activity',act:'nav:activity'},{t:'Admin & governance',act:'nav:account'}];
-    const docs=CFG.repoUrl?[{t:'Architecture',href:CFG.repoUrl},{t:'Protocol',href:CFG.repoUrl},{t:'Security model',href:CFG.repoUrl},{t:'Technical writeup',href:CFG.repoUrl}]:[{t:'How it works',act:'scroll:cv-how'},{t:'See the proof',act:'scroll:cv-how'},{t:'On-chain account ↗',href:CFG.explorer+'/contract/'+CFG.account},{t:'BN254 verifier ↗',href:CFG.explorer+'/contract/'+CFG.verifier}];
+    const docs=[{t:'Documentation ↗',href:CFG.docsUrl},{t:'Security model ↗',href:CFG.docsUrl+'/trust-and-security/security-model'},{t:'Source (GitHub) ↗',href:CFG.repoUrl},{t:'On-chain account ↗',href:CFG.explorer+'/contract/'+CFG.account}];
     const wlSending = wl.status==='sending';
     const wlBox = wl.status==='ok'
       ? '<div style="display:inline-flex;align-items:center;gap:9px;background:#E7F6EF;color:#07623F;font-size:13.5px;font-weight:550;padding:13px 18px;border-radius:11px">'+v.ico.check+' You’re on the list — we’ll email you when mainnet ships.</div>'
@@ -492,16 +493,16 @@ const App = {
 +'</div></footer>'; },
 
   // ===================== LANDING =====================
-  heroVisual(){ return `<div style="width:100%;max-width:468px;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#18181B;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:20px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 24px 60px -34px rgba(17,17,17,.22);overflow:hidden;box-sizing:border-box"><div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #F1F1F2"><div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2 4 5.5v6c0 4.6 3.1 8.4 8 10 4.9-1.6 8-5.4 8-10v-6L12 2Z" stroke="#0E9466" stroke-width="1.7" stroke-linejoin="round"/><path d="m8.6 12 2.3 2.3 4.5-4.6" stroke="#0E9466" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#52525B">Nulth Account</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.1em;color:#A1A1AA">CANA5QYV&middot;&middot;VK7T</span></div><div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#16C088;display:inline-block"></span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#0E9466">Live</span></div></div><div style="padding:15px 18px 4px"><div style="font-size:14.5px;font-weight:600;letter-spacing:-0.02em;color:#111111;line-height:1.25">Same account. Two payments.</div><div style="font-size:12px;color:#71717A;margin-top:3px;line-height:1.35">Obey the private policy and it clears. Break it and the payment cannot even form.</div></div><div style="padding:12px 18px 4px"><div style="border-radius:12px;background:#0B0B0C;border:1px solid #23232A;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex:none"><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="#16C088" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#16C088" stroke-width="2" stroke-linecap="round"/></svg><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#16C088">Private Policy</span><span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:8.5px;font-weight:500;letter-spacing:.1em;color:#8B8B93">Never on-chain</span></div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span style="font-size:11.5px;color:#8B8B93">Spend cap</span><span style="font-size:11.5px;color:#8B8B93">Allowlist</span><span style="font-size:11.5px;color:#8B8B93">Compliance</span></div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:5px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.16em;color:#E7E7EA">&bull;&bull;&bull;&bull;&bull;</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.16em;color:#E7E7EA">&bull;&bull;&bull;&bull;&bull;</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.16em;color:#E7E7EA">&bull;&bull;&bull;&bull;&bull;</span></div></div></div><div style="padding:12px 18px 4px"><div style="background:#E7F6EF;border:1px solid #D7EFE4;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:30px;height:30px;border-radius:50%;background:#0E9466;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17l-5-5"/></svg></div><div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:14px;font-weight:600;color:#07623F;font-variant-numeric:tabular-nums">8,500.00 USDC</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.11em;color:#0E9466;text-transform:uppercase;font-weight:600">Authorized</span></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:#52525B;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">to GD4V&middot;&middot;PAYROLL &nbsp;&middot;&nbsp; ZK proof verified on-chain</div></div></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-left:2px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.05em;color:#0E9466;background:#F1FBF6;border:1px solid #D7EFE4;border-radius:6px;padding:3px 7px">&#10003; under cap</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.05em;color:#0E9466;background:#F1FBF6;border:1px solid #D7EFE4;border-radius:6px;padding:3px 7px">&#10003; allowlisted</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.05em;color:#0E9466;background:#F1FBF6;border:1px solid #D7EFE4;border-radius:6px;padding:3px 7px">&#10003; compliant</span></div></div><div style="padding:8px 18px 14px"><div style="background:#FCEBEA;border:1px solid #F5D3D0;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:30px;height:30px;border-radius:50%;background:#DC2626;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12"/></svg></div><div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:14px;font-weight:600;color:#B42318;font-variant-numeric:tabular-nums;text-decoration:line-through;text-decoration-color:rgba(180,35,24,.45)">40,000.00 USDC</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.11em;color:#B42318;text-transform:uppercase;font-weight:600">Rejected</span></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:#B42318;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">to GDRAIN&middot;&middot;7X2Q &nbsp;&middot;&nbsp; no valid proof, cannot form</div></div></div></div><div style="display:flex;align-items:center;gap:9px;padding:12px 18px;background:#0B0B0C;border-top:1px solid #23232A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16C088" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span style="font-size:11px;color:#8B8B93;line-height:1.4">Rules stay private, enforced by a zero-knowledge proof verified on-chain &mdash; <span style="color:#E7E7EA">no spending key exists to steal.</span></span></div></div>`; },
+  heroVisual(){ return `<div style="width:100%;max-width:468px;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#18181B;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:20px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 24px 60px -34px rgba(17,17,17,.22);overflow:hidden;box-sizing:border-box"><div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #F1F1F2"><div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2 4 5.5v6c0 4.6 3.1 8.4 8 10 4.9-1.6 8-5.4 8-10v-6L12 2Z" stroke="#0E9466" stroke-width="1.7" stroke-linejoin="round"/><path d="m8.6 12 2.3 2.3 4.5-4.6" stroke="#0E9466" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#52525B">Nulth Account</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.1em;color:#A1A1AA">CAKSFFBT&middot;&middot;7QQW</span></div><div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#16C088;display:inline-block"></span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#0E9466">Live</span></div></div><div style="padding:15px 18px 4px"><div style="font-size:14.5px;font-weight:600;letter-spacing:-0.02em;color:#111111;line-height:1.25">Same account. Two payments.</div><div style="font-size:12px;color:#71717A;margin-top:3px;line-height:1.35">Obey the private policy and it clears. Break it and the payment cannot even form.</div></div><div style="padding:12px 18px 4px"><div style="border-radius:12px;background:#0B0B0C;border:1px solid #23232A;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex:none"><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="#16C088" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#16C088" stroke-width="2" stroke-linecap="round"/></svg><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#16C088">Private Policy</span><span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:8.5px;font-weight:500;letter-spacing:.1em;color:#8B8B93">Never on-chain</span></div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span style="font-size:11.5px;color:#8B8B93">Spend cap</span><span style="font-size:11.5px;color:#8B8B93">Allowlist</span><span style="font-size:11.5px;color:#8B8B93">Compliance</span></div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:5px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.16em;color:#E7E7EA">&bull;&bull;&bull;&bull;&bull;</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.16em;color:#E7E7EA">&bull;&bull;&bull;&bull;&bull;</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.16em;color:#E7E7EA">&bull;&bull;&bull;&bull;&bull;</span></div></div></div><div style="padding:12px 18px 4px"><div style="background:#E7F6EF;border:1px solid #D7EFE4;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:30px;height:30px;border-radius:50%;background:#0E9466;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17l-5-5"/></svg></div><div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:14px;font-weight:600;color:#07623F;font-variant-numeric:tabular-nums">8,500.00 USDC</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.11em;color:#0E9466;text-transform:uppercase;font-weight:600">Authorized</span></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:#52525B;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">to GD4V&middot;&middot;PAYROLL &nbsp;&middot;&nbsp; ZK proof verified on-chain</div></div></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-left:2px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.05em;color:#0E9466;background:#F1FBF6;border:1px solid #D7EFE4;border-radius:6px;padding:3px 7px">&#10003; under cap</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.05em;color:#0E9466;background:#F1FBF6;border:1px solid #D7EFE4;border-radius:6px;padding:3px 7px">&#10003; allowlisted</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.05em;color:#0E9466;background:#F1FBF6;border:1px solid #D7EFE4;border-radius:6px;padding:3px 7px">&#10003; compliant</span></div></div><div style="padding:8px 18px 14px"><div style="background:#FCEBEA;border:1px solid #F5D3D0;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px"><div style="width:30px;height:30px;border-radius:50%;background:#DC2626;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12"/></svg></div><div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:14px;font-weight:600;color:#B42318;font-variant-numeric:tabular-nums;text-decoration:line-through;text-decoration-color:rgba(180,35,24,.45)">40,000.00 USDC</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.11em;color:#B42318;text-transform:uppercase;font-weight:600">Rejected</span></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:#B42318;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">to GDRAIN&middot;&middot;7X2Q &nbsp;&middot;&nbsp; no valid proof, cannot form</div></div></div></div><div style="display:flex;align-items:center;gap:9px;padding:12px 18px;background:#0B0B0C;border-top:1px solid #23232A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16C088" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span style="font-size:11px;color:#8B8B93;line-height:1.4">Rules stay private, enforced by a zero-knowledge proof verified on-chain &mdash; <span style="color:#E7E7EA">no spending key exists to steal.</span></span></div></div>`; },
   landing(v){ const L=v.L; const bal=L.loading?'<span style="color:#c4c4ca">loading…</span>':(L.balance==null?'—':usdc(L.balance)); return ''
 +'<div style="background:#fff;color:#111;min-height:100vh">'
-+ '<div id="cv-nav" style="position:sticky;top:0;z-index:40;padding:0;background:rgba(255,255,255,.82);-webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid #ededee;transition:background .35s ease,padding .35s ease,border-color .35s ease,backdrop-filter .35s ease"><div id="cv-nav-inner" style="max-width:1180px;margin:0 auto;padding:0 32px;height:66px;display:flex;align-items:center;justify-content:space-between;border:1px solid transparent;border-radius:0;background:transparent;box-shadow:none;transition:max-width .42s cubic-bezier(.22,.61,.36,1),height .35s ease,border-radius .35s ease,box-shadow .35s ease,background .35s ease,padding .35s ease,border-color .35s ease,backdrop-filter .35s ease"><div style="display:flex;align-items:center;gap:11px"><img src="./logo_mark.png" alt="Nulth" style="width:27px;height:27px;object-fit:contain;border-radius:6px"><span style="font-weight:600;font-size:16.5px;letter-spacing:-.02em">Nulth</span><span class="cv-mono" style="margin-left:6px;font-size:10.5px;font-weight:500;color:#0E9466;background:#E7F6EF;padding:3px 7px;border-radius:5px">TESTNET</span></div><div style="display:flex;align-items:center;gap:28px"><div style="display:flex;gap:24px;font-size:14px;color:#52525b;font-weight:450" class="cv-navlinks"><span style="cursor:pointer" data-act="scroll:cv-showcase">See it</span><span style="cursor:pointer" data-act="scroll:cv-how">How it works</span>'+(CFG.repoUrl?'<a href="'+CFG.repoUrl+'" target="_blank" style="color:#52525b;text-decoration:none">Read the tech</a>':'<span style="cursor:pointer" data-act="scroll:cv-how">Read the tech</span>')+'</div><button data-act="nav:dashboard" class="cv-navcta" style="font-size:13.5px;font-weight:600;color:#fff;background:#0E9466;border:none;padding:9px 16px;border-radius:9px;cursor:pointer;white-space:nowrap">Try the live demo</button><button data-act="menu" class="cv-burger" aria-label="Open menu" style="display:none;width:40px;height:40px;border:1px solid #e4e4e7;border-radius:10px;background:#fff;cursor:pointer;align-items:center;justify-content:center;color:#111">'+v.ico.menu+'</button></div></div></div>'
++ '<div id="cv-nav" style="position:sticky;top:0;z-index:40;padding:0;background:rgba(255,255,255,.82);-webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid #ededee;transition:background .35s ease,padding .35s ease,border-color .35s ease,backdrop-filter .35s ease"><div id="cv-nav-inner" style="max-width:1180px;margin:0 auto;padding:0 32px;height:66px;display:flex;align-items:center;justify-content:space-between;border:1px solid transparent;border-radius:0;background:transparent;box-shadow:none;transition:max-width .42s cubic-bezier(.22,.61,.36,1),height .35s ease,border-radius .35s ease,box-shadow .35s ease,background .35s ease,padding .35s ease,border-color .35s ease,backdrop-filter .35s ease"><div style="display:flex;align-items:center;gap:11px"><img src="./logo_mark.png" alt="Nulth" style="width:27px;height:27px;object-fit:contain;border-radius:6px"><span style="font-weight:600;font-size:16.5px;letter-spacing:-.02em">Nulth</span><span class="cv-mono" style="margin-left:6px;font-size:10.5px;font-weight:500;color:#0E9466;background:#E7F6EF;padding:3px 7px;border-radius:5px">TESTNET</span></div><div style="display:flex;align-items:center;gap:28px"><div style="display:flex;gap:24px;font-size:14px;color:#52525b;font-weight:450" class="cv-navlinks"><span style="cursor:pointer" data-act="scroll:cv-showcase">See it</span><span style="cursor:pointer" data-act="scroll:cv-how">How it works</span>'+(CFG.docsUrl?'<a href="'+CFG.docsUrl+'" target="_blank" style="color:#52525b;text-decoration:none">Read the tech</a>':'<span style="cursor:pointer" data-act="scroll:cv-how">Read the tech</span>')+'</div><button data-act="nav:dashboard" class="cv-navcta" style="font-size:13.5px;font-weight:600;color:#fff;background:#0E9466;border:none;padding:9px 16px;border-radius:9px;cursor:pointer;white-space:nowrap">Try the live demo</button><button data-act="menu" class="cv-burger" aria-label="Open menu" style="display:none;width:40px;height:40px;border:1px solid #e4e4e7;border-radius:10px;background:#fff;cursor:pointer;align-items:center;justify-content:center;color:#111">'+v.ico.menu+'</button></div></div></div>'
 + '<div style="max-width:1180px;margin:0 auto;padding:80px 32px 44px"><div class="cv-hero-grid" style="display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center">'
 + '<div>'
 + '<div class="cv-rise cv-mono" style="font-size:12px;font-weight:500;letter-spacing:.16em;color:#a1a1aa;margin-bottom:26px">PRIVATE CONTROLS FOR PUBLIC MONEY · STELLAR TESTNET</div>'
 + '<h1 class="cv-rise cv-h1" style="margin:0;font-size:52px;line-height:1.08;letter-spacing:-.035em;font-weight:600;text-wrap:balance">Stablecoin accounts that enforce <span class="cv-wave">private</span> spending rules.</h1>'
 + '<p class="cv-rise" style="margin:26px 0 0;max-width:500px;font-size:18px;line-height:1.55;color:#52525b">Nulth is a proof-authorized Stellar account. Every payment must prove it obeys a private policy — <strong style="color:#18181b;font-weight:600">spend caps, allowlists, and compliance rules</strong> — without publishing those rules on-chain.</p>'
-+ '<div class="cv-rise" style="display:flex;gap:12px;margin-top:34px;flex-wrap:wrap;align-items:center"><button data-act="nav:dashboard" style="font-size:15px;font-weight:600;color:#fff;background:#0E9466;border:none;padding:14px 24px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:9px">Try the live demo <span style="font-size:17px;line-height:0">→</span></button><button data-act="nav:breaking" style="font-size:15px;font-weight:550;color:#18181b;background:#fff;border:1px solid #e4e4e7;padding:14px 22px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:9px"><span style="color:#DC2626;display:flex">'+v.ico.x+'</span>See an attack blocked</button>'+(CFG.repoUrl?'<a href="'+CFG.repoUrl+'" target="_blank" style="font-size:14px;font-weight:500;color:#52525b;text-decoration:none;padding:8px 6px">Read the tech →</a>':'<span data-act="scroll:cv-how" style="font-size:14px;font-weight:500;color:#52525b;cursor:pointer;padding:8px 6px">Read the tech →</span>')+'</div>'
++ '<div class="cv-rise" style="display:flex;gap:12px;margin-top:34px;flex-wrap:wrap;align-items:center"><button data-act="nav:dashboard" style="font-size:15px;font-weight:600;color:#fff;background:#0E9466;border:none;padding:14px 24px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:9px">Try the live demo <span style="font-size:17px;line-height:0">→</span></button><button data-act="nav:breaking" style="font-size:15px;font-weight:550;color:#18181b;background:#fff;border:1px solid #e4e4e7;padding:14px 22px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:9px"><span style="color:#DC2626;display:flex">'+v.ico.x+'</span>See an attack blocked</button>'+(CFG.docsUrl?'<a href="'+CFG.docsUrl+'" target="_blank" style="font-size:14px;font-weight:500;color:#52525b;text-decoration:none;padding:8px 6px">Read the tech →</a>':'<span data-act="scroll:cv-how" style="font-size:14px;font-weight:500;color:#52525b;cursor:pointer;padding:8px 6px">Read the tech →</span>')+'</div>'
 + '<div class="cv-rise cv-mono" style="margin-top:26px;display:flex;flex-wrap:wrap;align-items:center;gap:9px 14px;font-size:11.5px;letter-spacing:.02em;color:#71717a">'
 +   '<span>No spending key</span><span style="color:#d4d4d8">·</span><span>In-browser proving</span><span style="color:#d4d4d8">·</span><span>65,536 private allowlist slots</span><span style="color:#d4d4d8">·</span><span>Verified on Stellar testnet</span>'
 + '</div>'
@@ -521,7 +522,7 @@ const App = {
 + '<div class="cv-rise" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#ededee;border:1px solid #ededee;border-radius:16px;overflow:hidden;margin-top:24px"><div style="background:#fff;padding:26px 28px"><div class="cv-mono" style="font-size:34px;font-weight:600;letter-spacing:-.03em">'+CFG.slots+'</div><div style="font-size:13.5px;color:#71717a;margin-top:4px">private allowlist slots, one proof</div></div><div style="background:#fff;padding:26px 28px"><div class="cv-mono" style="font-size:34px;font-weight:600;letter-spacing:-.03em">'+CFG.costPct+'<span style="font-size:22px;color:#a1a1aa">%</span></div><div style="font-size:13.5px;color:#71717a;margin-top:4px">of a Stellar transaction compute budget to verify</div></div><div style="background:#fff;padding:26px 28px"><div class="cv-mono" style="font-size:34px;font-weight:600;letter-spacing:-.03em;color:#0E9466">0</div><div style="font-size:13.5px;color:#71717a;margin-top:4px">Ed25519 spending keys to phish or leak</div></div></div>'
 + '</div>'
 // no-key band
-+ '<div style="background:#0B0B0C;color:#E7E7EA;margin-top:80px"><div style="max-width:1180px;margin:0 auto;padding:88px 32px;display:grid;grid-template-columns:1.1fr 1fr;gap:60px;align-items:center"><div><div class="cv-mono" style="font-size:12px;font-weight:500;letter-spacing:.16em;color:#16C088;margin-bottom:22px">HOW IT WORKS</div><h2 style="margin:0;font-size:42px;line-height:1.08;letter-spacing:-.03em;font-weight:600">This account has no spending key.</h2><p style="margin:24px 0 0;font-size:18px;line-height:1.6;color:#8B8B93;max-width:520px">The proof <em style="color:#E7E7EA;font-style:normal">is</em> the spending authorization — there is no Ed25519 spending key to extract or phish. Funds move only when the spender proves, in zero knowledge, that the payment obeys the committed policy; a leaked policy secret still spends, but only <em style="color:#E7E7EA;font-style:normal">within</em> that policy. A separate admin key can rotate the policy or freeze the account — it cannot spend in one step (every spend needs a valid proof for the committed policy), though it can rotate the committed policy to one it controls and then spend: a full governance trust root (multisig + timelock are the documented hardening).</p><div style="display:flex;gap:36px;margin-top:36px"><div><div class="cv-mono" style="font-size:13px;color:#8B8B93;margin-bottom:6px">Spending domain</div><div style="font-size:15px;font-weight:500">Keyless · ZK proof</div></div><div style="width:1px;background:#2A2A30"></div><div><div class="cv-mono" style="font-size:13px;color:#8B8B93;margin-bottom:6px">Verification</div><div style="font-size:15px;font-weight:500">Native BN254 Groth16</div></div></div></div>'
++ '<div style="background:#0B0B0C;color:#E7E7EA;margin-top:80px"><div style="max-width:1180px;margin:0 auto;padding:88px 32px;display:grid;grid-template-columns:1.1fr 1fr;gap:60px;align-items:center"><div><div class="cv-mono" style="font-size:12px;font-weight:500;letter-spacing:.16em;color:#16C088;margin-bottom:22px">HOW IT WORKS</div><h2 style="margin:0;font-size:42px;line-height:1.08;letter-spacing:-.03em;font-weight:600">This account has no spending key.</h2><p style="margin:24px 0 0;font-size:18px;line-height:1.6;color:#8B8B93;max-width:520px">The proof <em style="color:#E7E7EA;font-style:normal">is</em> the spending authorization — there is no Ed25519 spending key to extract or phish. Funds move only when the spender proves, in zero knowledge, that the payment obeys the committed policy; a leaked policy secret still spends, but only <em style="color:#E7E7EA;font-style:normal">within</em> that policy. A separate admin key can rotate the policy or freeze the account — it cannot spend in one step (every spend needs a valid proof for the committed policy), though it can rotate the committed policy to one it controls and then spend — a governance trust root, now rate-limited: rotation is timelocked (propose → delay → execute), so it is publicly staged before it can take effect (multisig admin is the remaining documented hardening).</p><div style="display:flex;gap:36px;margin-top:36px"><div><div class="cv-mono" style="font-size:13px;color:#8B8B93;margin-bottom:6px">Spending domain</div><div style="font-size:15px;font-weight:500">Keyless · ZK proof</div></div><div style="width:1px;background:#2A2A30"></div><div><div class="cv-mono" style="font-size:13px;color:#8B8B93;margin-bottom:6px">Verification</div><div style="font-size:15px;font-weight:500">Native BN254 Groth16</div></div></div></div>'
 + '<div style="border:1px solid #2A2A30;border-radius:16px;background:#141416;padding:8px"><div style="background:#0B0B0C;border-radius:11px;padding:20px 22px;font-size:13px;line-height:2.05" class="cv-mono"><div style="color:#52525b">// authorization, not a signature</div><div style="color:#8B8B93">fn <span style="color:#E7E7EA">__check_auth</span>(proof, ctx) {</div><div style="color:#8B8B93;padding-left:18px">bind amount · dest · payload</div><div style="color:#8B8B93;padding-left:18px">commitment == stored ?</div><div style="color:#8B8B93;padding-left:18px"><span style="color:#16C088">groth16_verify</span>(vk, proof)</div><div style="color:#8B8B93">}</div><div style="margin-top:12px;color:#16C088">→ Ok · payment authorized</div></div></div></div></div>'
 // live facts + contracts
 + '<div style="max-width:1180px;margin:0 auto;padding:64px 32px 96px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:40px;border-bottom:1px solid #ededee;padding-bottom:48px"><div><div class="cv-mono" style="font-size:30px;font-weight:600;letter-spacing:-.02em">'+bal+'</div><div style="font-size:14px;color:#71717a;margin-top:6px">USDC under private policy · live on testnet</div></div><div><div class="cv-mono" style="font-size:30px;font-weight:600;letter-spacing:-.02em">'+CFG.costPct+'%</div><div style="font-size:14px;color:#71717a;margin-top:6px">verify cost · constant, allowlist-independent</div></div><div><div class="cv-mono" style="font-size:30px;font-weight:600;letter-spacing:-.02em;color:#0E9466">'+CFG.testsTotal+'</div><div style="font-size:14px;color:#71717a;margin-top:6px">tests pass · '+CFG.testsBreakdown+'</div></div></div>'
@@ -537,8 +538,8 @@ const App = {
 + '<nav style="flex:1;overflow-y:auto;padding:10px 12px">'+v.navGroups.map(g=>'<div style="margin-bottom:18px"><div class="cv-mono" style="font-size:10px;font-weight:600;letter-spacing:.13em;color:#b4b4ba;padding:6px 10px 8px">'+g.label+'</div>'+g.items.map(it=>'<div data-act="nav:'+it.id+'" style="'+it.style+'"><span style="display:flex;width:18px;height:18px;color:'+it.iconColor+'">'+it.icon+'</span><span style="flex:1">'+it.label+'</span>'+(it.badge?'<span class="cv-mono" style="font-size:9px;font-weight:600;background:#f4f4f5;color:#a1a1aa;padding:1px 6px;border-radius:20px;letter-spacing:.04em">'+it.badge+'</span>':'')+'</div>').join('')+'</div>').join('')+'</nav>'
 + '<div style="border-top:1px solid #f1f1f2;padding:12px">'+this.accountSwitcher(v)+'</div>'
 +'</aside>'; },
-  commandbar(v){ const ok=window.CovenantChain.hasOperatorKey(); return ''
-+'<header class="cv-cmdbar" style="height:62px;flex:none;background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid #ededee;display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:30"><div style="display:flex;align-items:center;gap:12px"><button data-act="menu" class="cv-burger" aria-label="Open menu" style="display:none;width:38px;height:38px;border:1px solid #ededee;border-radius:9px;background:#fff;cursor:pointer;align-items:center;justify-content:center;color:#111">'+v.ico.menu+'</button><h1 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em;white-space:nowrap">'+v.ttl[0]+'</h1><span class="cv-cmdsub" style="display:flex;align-items:center;gap:12px"><span style="font-size:13px;color:#c4c4ca">/</span><span style="font-size:13px;color:#a1a1aa;white-space:nowrap">'+v.ttl[1]+'</span></span></div><div style="display:flex;align-items:center;gap:14px"><div style="display:flex;align-items:center;gap:7px;background:'+(ok?'#E7F6EF':'#f4f4f5')+';border-radius:8px;padding:6px 11px"><span style="width:7px;height:7px;border-radius:50%;background:'+(ok?'#0E9466':'#a1a1aa')+';animation:cvPulse 2s ease-in-out infinite"></span><span class="cv-mono" style="font-size:11.5px;font-weight:600;color:'+(ok?'#0E9466':'#71717a')+'">'+(ok?'LIVE · TESTNET':'READ-ONLY')+'</span></div><button style="position:relative;width:38px;height:38px;border-radius:10px;border:1px solid #ededee;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#52525b">'+v.ico.bell+'</button></div></header>'; },
+  commandbar(v){ const ok=window.NulthChain.hasOperatorKey(); return ''
++'<header class="cv-cmdbar" style="height:62px;flex:none;background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid #ededee;display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:30"><div style="display:flex;align-items:center;gap:12px"><button data-act="menu" class="cv-burger" aria-label="Open menu" style="display:none;width:38px;height:38px;border:1px solid #ededee;border-radius:9px;background:#fff;cursor:pointer;align-items:center;justify-content:center;color:#111">'+v.ico.menu+'</button><h1 style="margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em;white-space:nowrap">'+v.ttl[0]+'</h1><span class="cv-cmdsub" style="display:flex;align-items:center;gap:12px"><span style="font-size:13px;color:#c4c4ca">/</span><span style="font-size:13px;color:#a1a1aa;white-space:nowrap">'+v.ttl[1]+'</span></span></div><div style="display:flex;align-items:center;gap:14px"><a href="'+this.docsFor(v.screen)+'" target="_blank" rel="noopener" class="cv-cmdsub" title="Docs for this screen — the full story" style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;color:#52525b;text-decoration:none">Docs <span style="font-size:11px">↗</span></a><div style="display:flex;align-items:center;gap:7px;background:'+(ok?'#E7F6EF':'#f4f4f5')+';border-radius:8px;padding:6px 11px"><span style="width:7px;height:7px;border-radius:50%;background:'+(ok?'#0E9466':'#a1a1aa')+';animation:cvPulse 2s ease-in-out infinite"></span><span class="cv-mono" style="font-size:11.5px;font-weight:600;color:'+(ok?'#0E9466':'#71717a')+'">'+(ok?'LIVE · TESTNET':'READ-ONLY')+'</span></div><button style="position:relative;width:38px;height:38px;border-radius:10px;border:1px solid #ededee;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#52525b">'+v.ico.bell+'</button></div></header>'; },
 
   // ===================== DASHBOARD =====================
   dashboard(v){ const L=v.L; const bal=L.loading?'…':usdc(L.balance);
@@ -574,7 +575,7 @@ const App = {
   },
 
   // ===================== PAY (the wired end-to-end flow) =====================
-  pay_screen(v){ const p=this.pay; const ok=window.CovenantChain.hasOperatorKey();
+  pay_screen(v){ const p=this.pay; const ok=window.NulthChain.hasOperatorKey();
     const stepOrder=['reading dest_field','simulating','proving','submitting','confirming'];
     const result=p.result;
     let panel='';
@@ -738,7 +739,7 @@ const App = {
   verdict(pass){ return pass?'<div style="display:inline-flex;align-items:center;gap:10px;background:#0B0B0C;padding:12px 22px;border-radius:12px;animation:cvGlow 2.4s ease-out infinite"><span style="color:#16C088">'+icon('check',{w:15,h:15})+'</span><span class="cv-mono" style="font-size:14px;font-weight:600;color:#16C088;letter-spacing:.02em;white-space:nowrap">PROOF INTEGRITY VALID · cap ≤ limit</span></div>':'<div style="display:inline-flex;align-items:center;gap:10px;background:#FCEBEA;padding:12px 22px;border-radius:12px"><span style="color:#DC2626">'+icon('x',{w:14,h:14})+'</span><span class="cv-mono" style="font-size:14px;font-weight:600;color:#DC2626;letter-spacing:.02em;white-space:nowrap">PROOF FAILS · cap exceeds limit</span></div>'; },
 
   // ===================== ACCOUNT / GOVERNANCE (live admin) =====================
-  account(v){ const L=v.L; const a=this.admin; const ch=window.CovenantChain;
+  account(v){ const L=v.L; const a=this.admin; const ch=window.NulthChain;
     const hasKey=ch.hasAdminKey(); const localAdmin=ch.adminPublicKey();
     const frozen=L.policy?!!L.policy.frozen:null;
     const onAdmin=L.policy&&L.policy.admin?L.policy.admin:null;
@@ -768,7 +769,7 @@ const App = {
 +   '</div>'
 + '</div>'
 // rotate card
-+ '<div style="background:#fff;border:1px solid #ededee;border-radius:14px;padding:22px;margin-top:14px"><div style="font-size:14px;font-weight:600;margin-bottom:8px">Rotate committed policy</div><div style="font-size:12.5px;color:#71717a;line-height:1.5;margin-bottom:18px">Update the on-chain <span class="cv-mono">policy_commitment</span> and <span class="cv-mono">allowlist_root</span>. After rotation, in-flight proofs against the old policy fail <span class="cv-mono">BadPolicyBinding (#4)</span>. Fields are prefilled with the live values; edit to point at a new policy.</div><div style="display:flex;flex-direction:column;gap:14px">'
++ '<div style="background:#fff;border:1px solid #ededee;border-radius:14px;padding:22px;margin-top:14px"><div style="font-size:14px;font-weight:600;margin-bottom:8px">Rotate committed policy</div><div style="font-size:12.5px;color:#71717a;line-height:1.5;margin-bottom:18px">Update the on-chain <span class="cv-mono">policy_commitment</span> and <span class="cv-mono">allowlist_root</span>. Rotation is timelocked: the admin proposes it, then executes it after the delay (about a minute on the demo account), so this signs two transactions. After it executes, in-flight proofs against the old policy fail <span class="cv-mono">BadPolicyBinding (#4)</span>. Fields are prefilled with the live values; edit to point at a new policy.</div><div style="display:flex;flex-direction:column;gap:14px">'
 +   '<div><label style="display:block;font-size:12px;color:#52525b;margin-bottom:6px">policy_commitment (decimal)</label><input id="rot-commit" type="text" value="'+onCommit+'" class="cv-mono" style="width:100%;font-size:12px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;outline:none" /></div>'
 +   '<div><label style="display:block;font-size:12px;color:#52525b;margin-bottom:6px">allowlist_root (decimal)</label><input id="rot-root" type="text" value="'+onRoot+'" class="cv-mono" style="width:100%;font-size:12px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;outline:none" /></div>'
 +   '<button data-act="adminrotate" '+(busy||!hasKey?'disabled':'')+' style="font-size:13.5px;font-weight:550;color:#fff;background:'+(busy||!hasKey?'#c4c4ca':'#111')+';border:none;padding:12px;border-radius:10px;cursor:'+(busy||!hasKey?'not-allowed':'pointer')+'">Rotate policy (admin-signed)</button>'
@@ -816,8 +817,8 @@ const App = {
 + '</div></div>'; },
 
   // ===================== CREATE / ONBOARDING (self-serve, client-side policy) =====================
-  createScreen(v){ const c=this.create; const wal=window.CovenantWallet&&window.CovenantWallet.available();
-    const locals=window.CovenantCreate?window.CovenantCreate.listLocal():{}; const localIds=Object.keys(locals);
+  createScreen(v){ const c=this.create; const wal=window.NulthWallet&&window.NulthWallet.available();
+    const locals=window.NulthCreate?window.NulthCreate.listLocal():{}; const localIds=Object.keys(locals);
     const rows=this.create.allowlist.map((a,i)=>'<div style="display:flex;gap:8px;margin-bottom:8px"><input data-cre="allow:'+i+'" type="text" value="'+(a||'').replace(/"/g,'&quot;')+'" placeholder="G… destination address" class="cv-mono" style="flex:1;font-size:12px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:9px;outline:none" />'+(this.create.allowlist.length>1?'<button data-act="rmallow:'+i+'" style="font-size:12px;color:#DC2626;background:#fff;border:1px solid #e4e4e7;border-radius:9px;padding:0 12px;cursor:pointer">✕</button>':'')+'</div>').join('');
     let panel='';
     if(c.phase==='running') panel='<div style="margin-top:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#52525b"><span style="width:16px;height:16px;border-radius:50%;border:2px solid #e4e4e7;border-top-color:#0E9466;display:inline-block;animation:cvRing .7s linear infinite"></span>'+c.step+'…</div>'+(c.policy?'<div style="margin-top:12px;font-size:11.5px;color:#71717a;line-height:1.6" class="cv-mono">computed in your browser:<br>commitment '+trunc('0x'+BigInt(c.policy.commitment).toString(16))+'<br>root '+trunc('0x'+BigInt(c.policy.root).toString(16))+'</div>':'');
@@ -872,8 +873,9 @@ const App = {
     if(this.state.screen==='landing'){ this.bindLanding(); }
     else { if(this._cvScroll){ window.removeEventListener('scroll', this._cvScroll); this._cvScroll=null; } if(this._cvResize){ window.removeEventListener('resize', this._cvResize); this._cvResize=null; } if(this._cardswap){ this._cardswap.destroy(); this._cardswap=null; } }
   },
+  docsFor(screen){ const b=CFG.docsUrl; if(!b) return b; const m={ dashboard:'getting-started/quickstart', pay:'guides/send-a-payment', create:'guides/create-and-fund', agent:'guides/agent-spending-account', verify:'guides/prove-to-an-auditor', breaking:'trust-and-security/security-model', policy:'how-nulth-works/policy-and-circuit', account:'how-nulth-works/governance', activity:'how-nulth-works/account-and-check-auth', compare:'reference/nulth-and-confidential-tokens' }; return m[screen]?b+'/'+m[screen]:b; },
   dispatch(act){ const i=act.indexOf(':'); const k=i<0?act:act.slice(0,i); const arg=i<0?null:act.slice(i+1);
-    switch(k){ case 'nav':this.nav(arg);break; case 'menu':this.toggleMenu();break; case 'env':this.setEnv(arg);break; case 'pay':this.runPay();break; case 'payreset':this.pay={phase:'idle',step:'',result:null,refusedReason:'',error:'',before:null,after:null};this.render();break; case 'dest':this.fillDest(arg);break; case 'discrun':this.runDisclosure();break; case 'agentsend':{const el=document.getElementById('cv-agent-input');const t=el?el.value:'';if(el)el.value='';this.sendAgent(t);break;} case 'agentchip':this.agentChip(arg);break; case 'attack':this.runAttack(arg);break; case 'resetDeck':this.resetDeck(arg);break; case 'adminfreeze':this.runAdmin('freeze');break; case 'adminunfreeze':this.runAdmin('unfreeze');break; case 'adminrotate':this.runAdmin('rotate');break; case 'connectWallet':this.connectWallet();break; case 'createrun':this.runCreate();break; case 'addallow':this.addAllow();break; case 'rmallow':this.rmAllow(Number(arg));break; case 'entercreated':this.enterCreatedAccount();break; case 'switch':this.switchAccount(arg);break; case 'importks':this.importKeystore();break; case 'reload':this.reload();break; case 'copyreceipt':this.copyReceipt();break; case 'scroll':this.scrollToEl(arg);break; case 'waitlist':this.submitWaitlist();break; case 'fundxlm':this.fundWalletXlm();break; case 'seed':this.runSeed(arg);break; } },
+    switch(k){ case 'nav':this.nav(arg);break; case 'menu':this.toggleMenu();break; case 'env':this.setEnv(arg);break; case 'pay':this.runPay();break; case 'payreset':this.pay={phase:'idle',step:'',result:null,refusedReason:'',error:'',before:null,after:null};this.render();break; case 'dest':this.fillDest(arg);break; case 'discrun':this.runDisclosure();break; case 'agentsend':{const el=document.getElementById('cv-agent-input');const t=el?el.value:'';if(el)el.value='';this.sendAgent(t);break;} case 'agentchip':this.agentChip(arg);break; case 'attack':this.runAttack(arg);break; case 'resetDeck':this.resetDeck(arg);break; case 'adminfreeze':this.runAdmin('freeze');break; case 'adminunfreeze':this.runAdmin('unfreeze');break; case 'adminrotate':this.runAdmin('rotate');break; case 'connectWallet':this.connectWallet();break; case 'createrun':this.runCreate();break; case 'addallow':this.addAllow();break; case 'rmallow':this.rmAllow(Number(arg));break; case 'entercreated':this.enterCreatedAccount();break; case 'switch':this.switchAccount(arg);break; case 'importks':this.importKeystore();break; case 'reload':this.reload();break; case 'copyreceipt':this.copyReceipt();break; case 'scroll':this.scrollToEl(arg);break; case 'waitlist':this.submitWaitlist();break; case 'fundxlm':this.fundWalletXlm();break; case 'seed':this.runSeed(arg);break; case 'docs':window.open(this.docsFor(this.state.screen),'_blank','noopener');break; } },
   onSlider(which,val){
     if(which==='probe'){ this.state.probe=Number(val); const s=this.live.secret; const cap=s?BigInt(s.cap):750000000n; const pass=cap<=BigInt(this.state.probe)*10000000n;
       const ps=document.getElementById('cv-probestr'); if(ps)ps.textContent=Number(val).toLocaleString('en-US');
@@ -887,7 +889,7 @@ const App = {
     // restore a still-unlocked user account (sessionStorage, decrypted) so returning users land on
     // their own dashboard. After the tab closes the unlock is gone and we start on the demo.
     let restored=false;
-    try{ const a=localStorage.getItem('nulth.active')||localStorage.getItem('covenant.active'); if(a&&a!==CFG.account&&window.CovenantCreate){ const full=window.CovenantCreate.loadUnlocked(a); if(full){ window.CovenantChain.setActive(a,full); this.active={account:a,label:'Your account',isDemo:false,keystore:full}; restored=true; } } }catch(e){}
+    try{ const a=localStorage.getItem('nulth.active')||localStorage.getItem('covenant.active'); if(a&&a!==CFG.account&&window.NulthCreate){ const full=window.NulthCreate.loadUnlocked(a); if(full){ window.NulthChain.setActive(a,full); this.active={account:a,label:'Your account',isDemo:false,keystore:full}; restored=true; } } }catch(e){}
     // URL hash drives the route (deep-link / refresh / back-forward). Falls back to the restored
     // user dashboard, else the landing page.
     const h=(location.hash||'').slice(1);

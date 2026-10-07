@@ -2,9 +2,9 @@
 // the secret (cap/salt/allowlist path) NEVER leaves the browser; only the proof + 6 public signals
 // go on-chain. setSecret() points it at a user's keystore; useDemo() restores the demo policy.
 (function () {
-  const C = window.COVENANT;
+  const C = window.NULTH;
   let _demo = null;      // the shared demo policy (lazy-fetched)
-  let _override = null;  // an active user keystore (set by CovenantChain.setActive)
+  let _override = null;  // an active user keystore (set by NulthChain.setActive)
 
   async function load() {
     if (_override) return _override;
@@ -109,7 +109,7 @@
   // low-level: run the policy circuit on an arbitrary input (Exploitation Deck). Demo policy only.
   async function raw(input) { await load(); return fullProve(input, C.proverWasm, C.proverZkey); }
 
-  window.CovenantProver = {
+  window.NulthProver = {
     load, loadDemo, precheck, prove, proveDisclosure, raw, setSecret, useDemo,
     get cap() { return cur() && cur().cap; },
     get loaded() { return !!cur(); },

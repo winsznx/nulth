@@ -6,7 +6,7 @@
 // never touch a server: they live only in this file's outputs (keystore / localStorage).
 (function () {
   const SDK = window.StellarSdk;
-  const C = window.COVENANT;
+  const C = window.NULTH;
   const rpc = new SDK.rpc.Server(C.rpcUrl);
   const PASS = C.networkPassphrase;
   const addr = (a) => SDK.nativeToScVal(a, { type: 'address' });
@@ -23,28 +23,36 @@
   function randomSaltDec() { const b = new Uint8Array(16); crypto.getRandomValues(b); return BigInt('0x' + Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('')).toString(); }
 
   // CLIENT-SIDE policy — random salt, Poseidon(cap,salt) commitment, DEPTH-16 root over the
-  // allowlist. Each address is encoded to its field element IN-BROWSER via CovenantPoseidon.addrToField
+  // allowlist. Each address is encoded to its field element IN-BROWSER via NulthPoseidon.addrToField
   // (= the contract's dest_field, golden-vector-verified). NO RPC: the allowlist (incl. unexercised
   // entries) never leaves the browser. Only the commitment + root are public, and they reveal nothing.
   function buildPolicy(capUsdc, allowlistAddrs) {
     const cap = BigInt(Math.round(Number(capUsdc) * 1e7)).toString();
     const salt = randomSaltDec();
-    const pol = window.CovenantPoseidon.buildPolicyForAddresses(cap, salt, allowlistAddrs);
+    const pol = window.NulthPoseidon.buildPolicyForAddresses(cap, salt, allowlistAddrs);
     const members = pol.members.map((m, i) => ({ address: allowlistAddrs[i], destLeaf: m.destLeaf, index: m.index, path: m.path, index_bits: m.index_bits }));
     return { cap, salt, commitment: pol.commitment, root: pol.root, members };
   }
 
   // Deploy a fresh account: createContractV2(shared wasm hash) + constructor(vk, commitment, root,
-  // USDC, admin). The user's wallet signs. Returns the new (dynamic) account id.
+  // USDC, admin, epoch_ledgers, epoch_cap, rotation_delay). The user's wallet signs. Returns the
+  // new (dynamic) account id. epoch_cap = per-payment cap x multiplier -> a rolling cumulative
+  // ceiling; rotation_delay timelocks committed-policy rotation.
   async function deploy(admin, pol, onStep) {
     onStep && onStep('loading verifier key');
     const vk = await fetch(C.proverVk, { cache: 'no-store' }).then((r) => r.json());
-    const S = window.CovenantSerialize;
+    const S = window.NulthSerialize;
+    const epochCap = (BigInt(pol.cap) * BigInt(C.epochCapMultiplier)).toString();
     const op = SDK.Operation.createCustomContract({
       address: SDK.Address.fromString(admin),
       wasmHash: window.Buffer.from(C.accountWasmHash, 'hex'),
       salt: randomBytes(32),
-      constructorArgs: [S.vkScVal(vk, 'c1c0'), S.u256ScVal(pol.commitment), S.u256ScVal(pol.root), addr(C.usdcSac), addr(admin)],
+      constructorArgs: [
+        S.vkScVal(vk, 'c1c0'), S.u256ScVal(pol.commitment), S.u256ScVal(pol.root), addr(C.usdcSac), addr(admin),
+        SDK.nativeToScVal(C.epochLedgers, { type: 'u32' }),
+        SDK.nativeToScVal(BigInt(epochCap), { type: 'i128' }),
+        SDK.nativeToScVal(C.rotationDelayLedgers, { type: 'u32' }),
+      ],
     });
     onStep && onStep('simulating deploy');
     let src = await rpc.getAccount(admin);
@@ -54,7 +62,7 @@
     const account = SDK.scValToNative(sim.result.retval);
     tx = SDK.rpc.assembleTransaction(tx, sim).build();
     onStep && onStep('awaiting wallet signature');
-    const signed = await window.CovenantWallet.sign(tx);
+    const signed = await window.NulthWallet.sign(tx);
     onStep && onStep('submitting deploy');
     const res = await rpc.sendTransaction(signed);
     let final; for (let i = 0; i < 30; i++) { await sleep(2000); final = await rpc.getTransaction(res.hash); if (final.status !== 'NOT_FOUND') break; }
@@ -136,6 +144,6 @@
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  window.CovenantCreate = { buildPolicy, deploy, makeKeystore, seal, unlock, secretFor,
+  window.NulthCreate = { buildPolicy, deploy, makeKeystore, seal, unlock, secretFor,
     listLocal, saveLocal, loadLocal, isEncrypted, listUnlocked, saveUnlocked, loadUnlocked, importKeystore, download };
 })();

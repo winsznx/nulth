@@ -41,7 +41,7 @@ web/
 
 These are the on-chain facts from the deployment, used everywhere the UI shows a headline number:
 
-- account `CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE`
+- account `CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW`
 - verifier `CCKBPVP7MZJOQYU44RK5MG4PA2YKV4UQ7CJMPK3OIHNFHLG5PEMNDREG`
 - verify cost **8.537%** of the 400M ceiling (34,149,591 instr, DEPTH-16)
 - a real proof-authorized payment tx `8d204b9b…`

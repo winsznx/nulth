@@ -1,9 +1,9 @@
 // Freighter wallet adapter — uses the official @stellar/freighter-api v6 (vendored UMD in
 // lib/freighter-api.js), which talks to the extension over its postMessage bridge (the modern
 // Freighter exposes only a `window.freighter` boolean flag, not a callable global). The connecting
-// account becomes the ADMIN of a new Covenant account and signs the deploy/admin txs. No keys here.
+// account becomes the ADMIN of a new Nulth account and signs the deploy/admin txs. No keys here.
 (function () {
-  const C = window.COVENANT;
+  const C = window.NULTH;
   let _address = null;
 
   // the vendored UMD exposes window.freighterApi (named exports; .default as fallback)
@@ -47,5 +47,5 @@
     return window.StellarSdk.TransactionBuilder.fromXDR(r.signedTxXdr, C.networkPassphrase);
   }
 
-  window.CovenantWallet = { available, connect, getAddress, sign, _api: fa };
+  window.NulthWallet = { available, connect, getAddress, sign, _api: fa };
 })();

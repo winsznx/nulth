@@ -101,5 +101,5 @@
     return buildPolicy(capStroops, saltDec, (addrs || []).map(addrToField));
   }
 
-  window.CovenantPoseidon = { poseidon2: function (a, b) { return poseidon2(a, b).toString(); }, buildPolicy: buildPolicy, buildPolicyForAddresses: buildPolicyForAddresses, addrToField: addrToField, verifyMember: verifyMember, DEPTH: DEPTH };
+  window.NulthPoseidon = { poseidon2: function (a, b) { return poseidon2(a, b).toString(); }, buildPolicy: buildPolicy, buildPolicyForAddresses: buildPolicyForAddresses, addrToField: addrToField, verifyMember: verifyMember, DEPTH: DEPTH };
 })();
