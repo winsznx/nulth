@@ -28,7 +28,7 @@ await cmd('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScal
 await cmd('Page.navigate',{url:`http://localhost:${PORT}/`}); await sleep(1800);
 
 console.log('=== globals + new funding helpers ===');
-console.log(await ev('JSON.stringify({chain:typeof window.CovenantChain,friendbotFund:typeof CovenantChain.friendbotFund,seedUsdc:typeof CovenantChain.seedUsdc,operatorUsdc:typeof CovenantChain.operatorUsdc,opKey:CovenantChain.hasOperatorKey(),opPub:CovenantChain.operatorPub&&CovenantChain.operatorPub()})'));
+console.log(await ev('JSON.stringify({chain:typeof window.NulthChain,friendbotFund:typeof NulthChain.friendbotFund,seedUsdc:typeof NulthChain.seedUsdc,operatorUsdc:typeof NulthChain.operatorUsdc,opKey:NulthChain.hasOperatorKey(),opPub:NulthChain.operatorPub&&NulthChain.operatorPub()})'));
 for(let i=0;i<30;i++){ if(await ev('App.live.loading')===false) break; await sleep(700); }
 
 console.log('\n=== forbidden-phrase + number scan (landing) ===');
@@ -63,11 +63,11 @@ await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion'
 
 console.log('\n=== ON-CHAIN: in-app friendbot (XLM) for a fresh wallet ===');
 await ev("App.nav('landing')"); await sleep(300);
-const fb=await ev("(async function(){var kp=window.StellarSdk.Keypair.random();var r=await window.CovenantChain.friendbotFund(kp.publicKey());return JSON.stringify({pub:kp.publicKey(),status:r.status,hash:r.hash});})()", true);
+const fb=await ev("(async function(){var kp=window.StellarSdk.Keypair.random();var r=await window.NulthChain.friendbotFund(kp.publicKey());return JSON.stringify({pub:kp.publicKey(),status:r.status,hash:r.hash});})()", true);
 console.log('  friendbot:', fb);
 
 console.log('\n=== ON-CHAIN: in-app seedUsdc (operator -> demo account, 0.05 USDC) ===');
-const seed=await ev("(async function(){var acct=window.COVENANT.account;var before=await window.CovenantChain.sacBalance(acct);var r=await window.CovenantChain.seedUsdc(acct, 500000n);var after=await window.CovenantChain.sacBalance(acct);return JSON.stringify({status:r.status,hash:r.hash,deltaStroops:String(after-before)});})()", true);
+const seed=await ev("(async function(){var acct=window.NULTH.account;var before=await window.NulthChain.sacBalance(acct);var r=await window.NulthChain.seedUsdc(acct, 500000n);var after=await window.NulthChain.sacBalance(acct);return JSON.stringify({status:r.status,hash:r.hash,deltaStroops:String(after-before)});})()", true);
 console.log('  seedUsdc:', seed);
 
 const totalErrs=Object.values(perRoute).reduce((a,b)=>a+b.length,0);

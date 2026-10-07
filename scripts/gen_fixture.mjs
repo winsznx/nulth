@@ -3,19 +3,22 @@
 // the test can reproduce the exact Hash<32> via env.crypto().sha256(SEED).
 import * as SDK from '@stellar/stellar-sdk';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { g1Bytes, g2Bytes } from './lib.mjs';
-const require = createRequire(import.meta.url);
-const snarkjs = require('/Users/mac/covenant/circuits/node_modules/snarkjs');
 
-const B = '/Users/mac/covenant';
+const B = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
+const snarkjs = require(`${B}/circuits/node_modules/snarkjs`);
+
 const secret = JSON.parse(fs.readFileSync(`${B}/build/policy_secret.json`));
 const vk = JSON.parse(fs.readFileSync(`${B}/circuits/build/verification_key.json`));
 const AMOUNT = '10000000';
 const PAYEE = process.env.PAYEE;
 const TOKEN = process.env.TOKEN;
 
-const SEED = Buffer.from('covenant-p1-fixture-payload-seed-v1');
+const SEED = Buffer.from('nulth-p1-fixture-payload-seed-v1');
 const payload = SDK.hash(SEED); // 32 bytes = the signature_payload
 const hi = BigInt('0x' + payload.subarray(0, 16).toString('hex')).toString();
 const lo = BigInt('0x' + payload.subarray(16, 32).toString('hex')).toString();
@@ -43,10 +46,10 @@ pub const PROOF_C: &str = "${g1Bytes(proof.pi_c).toString('hex')}";
 pub const PUB: [&str; 6] = [${publicSignals.map((s) => `"${dec2hex32(s)}"`).join(', ')}];
 pub const COMMITMENT: &str = "${dec2hex32(secret.commitment)}";
 pub const ROOT: &str = "${dec2hex32(secret.root)}";
-pub const PAYLOAD_SEED: &[u8] = b"covenant-p1-fixture-payload-seed-v1";
+pub const PAYLOAD_SEED: &[u8] = b"nulth-p1-fixture-payload-seed-v1";
 pub const AMOUNT: i128 = ${AMOUNT};
 pub const PAYEE: &str = "${PAYEE}";
 pub const TOKEN: &str = "${TOKEN}";
 `;
-fs.writeFileSync(`${B}/contracts/covenant_account/src/fixture_data.rs`, rs);
+fs.writeFileSync(`${B}/contracts/nulth_account/src/fixture_data.rs`, rs);
 console.log('wrote fixture_data.rs; publicSignals=', publicSignals.join(','));

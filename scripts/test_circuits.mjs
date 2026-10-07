@@ -2,9 +2,11 @@
 // verifying proof; an out-of-policy input makes the circuit UNSATISFIABLE (witness abort).
 import { createRequire } from 'module';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
-const snarkjs = require('/Users/mac/covenant/circuits/node_modules/snarkjs');
-const B = '/Users/mac/covenant';
+const B = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const snarkjs = require(`${B}/circuits/node_modules/snarkjs`);
 const secret = JSON.parse(fs.readFileSync(`${B}/build/policy_secret.json`));
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n); } };

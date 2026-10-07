@@ -1,4 +1,4 @@
-// Screenshot each Covenant SPA screen in headless Chrome (CDP, no puppeteer) to verify render.
+// Screenshot each Nulth SPA screen in headless Chrome (CDP, no puppeteer) to verify render.
 import http from 'http';
 import fs from 'fs';
 import path from 'path';

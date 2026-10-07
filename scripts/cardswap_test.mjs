@@ -18,7 +18,7 @@ await cmd('Runtime.enable');await cmd('Page.enable');
 await cmd('Page.navigate',{url:B+'/'});await sleep(2200);
 for(let i=0;i<25;i++){if(await ev('window.App&&App.live&&App.live.loading')===false)break;await sleep(500);}
 await sleep(500);
-console.log('mountScroll present:', await ev('!!(window.CovenantCardSwap&&window.CovenantCardSwap.mountScroll)'));
+console.log('mountScroll present:', await ev('!!(window.NulthCardSwap&&window.NulthCardSwap.mountScroll)'));
 console.log('cards:', await ev("document.querySelectorAll('.cv-cs-card').length"));
 // geometry
 const geo=JSON.parse(await ev("(function(){var s=document.getElementById('cv-showcase');var r=s.getBoundingClientRect();return JSON.stringify({top:r.top+window.scrollY, h:s.offsetHeight, vh:window.innerHeight});})()"));

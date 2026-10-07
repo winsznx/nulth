@@ -6,7 +6,7 @@ import * as SDK from '@stellar/stellar-sdk';
 const RPC = new SDK.rpc.Server('https://soroban-testnet.stellar.org');
 const PASS = SDK.Networks.TESTNET;
 const SAC = 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA';
-const ACCOUNT = 'CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE';
+const ACCOUNT = 'CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW';
 const payee = SDK.Keypair.fromSecret(process.env.PAYEE_SECRET);
 const u = (s) => Number(s) / 1e7;
 
@@ -23,7 +23,7 @@ async function balanceOf(addr) {
 
 const balAcct = await balanceOf(ACCOUNT);
 const balPayee = await balanceOf(payee.publicKey());
-console.log('demo account (CANA5QYV) USDC:', balAcct.toString(), '=', u(balAcct));
+console.log('demo account (CAKSFFBT) USDC:', balAcct.toString(), '=', u(balAcct));
 console.log('payee       (GBEOVHEZ) USDC:', balPayee.toString(), '=', u(balPayee));
 
 if (process.env.DO === '1') {

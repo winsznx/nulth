@@ -1,4 +1,4 @@
-// Execute a USDC SAC transfer FROM the Covenant account, authorized ONLY by a
+// Execute a USDC SAC transfer FROM the Nulth account, authorized ONLY by a
 // Groth16 proof (no keys). Adapted from the proven zkpay.mjs: swaps the XLM SAC
 // for the canonical USDC SAC and attaches the c1c0-serialized ProofSig.
 import * as SDK from '@stellar/stellar-sdk';
@@ -8,7 +8,7 @@ import { proofSigScVal } from './lib.mjs';
 const RPC = new SDK.rpc.Server('https://soroban-testnet.stellar.org');
 const PASS = SDK.Networks.TESTNET;
 
-const ACC = process.env.ACC;       // Covenant account (the keyless spender)
+const ACC = process.env.ACC;       // Nulth account (the keyless spender)
 const SAC = process.env.SAC;       // USDC SAC
 const PAYEE = process.env.PAYEE;   // destination
 const AMOUNT = BigInt(process.env.AMT || '10000000'); // 1.0 USDC

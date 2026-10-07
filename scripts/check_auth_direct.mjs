@@ -10,7 +10,7 @@ const snarkjs = require('/Users/mac/covenant/circuits/node_modules/snarkjs');
 
 const RPC = new SDK.rpc.Server('https://soroban-testnet.stellar.org');
 const PASS = SDK.Networks.TESTNET;
-const ACC = 'CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE';
+const ACC = 'CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW';
 const USDC = 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA';
 const XLM = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 const PAYEE = 'GBEOVHEZI2PS6OMLKZFULUXFSG5ZN3YAKUJE7UV3B7ACJVIXDA2UU4BS';
@@ -48,7 +48,7 @@ async function callCheckAuth(payloadBuf, proofScv, contextsScv) {
 }
 
 const df = await destField(PAYEE);
-const P = SDK.hash(Buffer.from('covenant-deck-probe-v1'));
+const P = SDK.hash(Buffer.from('nulth-deck-probe-v1'));
 const { hi, lo } = payloadHalves(P);
 const input = { amount: AMT.toString(), dest: df, policy_commitment: secret.commitment, allowlist_root: secret.root, sigpayload_hi: hi, sigpayload_lo: lo, cap: secret.cap, salt: secret.salt, path: secret.path, index_bits: secret.index_bits };
 const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, `${B}/circuits/build/policy_js/policy.wasm`, `${B}/circuits/build/policy_final.zkey`);

@@ -23,7 +23,7 @@ await cmd('Page.enable'); await cmd('Runtime.enable');
 await cmd('Page.navigate',{url:`http://localhost:${PORT}/`}); await sleep(1500);
 
 console.log('=== globals (create-flow libs loaded) ===');
-console.log(await ev('JSON.stringify({poseidon:typeof window.CovenantPoseidon,wallet:typeof window.CovenantWallet,create:typeof window.CovenantCreate,chain:typeof window.CovenantChain,setActive:typeof (window.CovenantChain&&CovenantChain.setActive),freighterAvail:window.CovenantWallet&&CovenantWallet.available()})'));
+console.log(await ev('JSON.stringify({poseidon:typeof window.NulthPoseidon,wallet:typeof window.NulthWallet,create:typeof window.NulthCreate,chain:typeof window.NulthChain,setActive:typeof (window.NulthChain&&NulthChain.setActive),freighterAvail:window.NulthWallet&&NulthWallet.available()})'));
 
 console.log('=== wait for demo live reads (Task E spot-check) ===');
 for(let i=0;i<30;i++){ if(await ev('App.live.loading')===false) break; await sleep(700); }
@@ -36,7 +36,7 @@ await ev("App.setAllow(0,'GBEOVHEZI2PS6OMLKZFULUXFSG5ZN3YAKUJE7UV3B7ACJVIXDA2UU4
 const pol=await ev('App.previewPolicy().then(p=>JSON.stringify({commitment:p.commitment,root:p.root,members:p.members.length,m0:p.members[0]&&{idx:p.members[0].index,pathLen:p.members[0].path.length}}))', true);
 console.log('client-side policy:', pol);
 // in-browser internal consistency: the member path reproduces the root (circuit-equivalence)
-const consistent=await ev("(function(){var p=App.create.policy;var m=p.members[0];return window.CovenantPoseidon.verifyMember(p.root,m.destLeaf,m.path,m.index_bits);})()");
+const consistent=await ev("(function(){var p=App.create.policy;var m=p.members[0];return window.NulthPoseidon.verifyMember(p.root,m.destLeaf,m.path,m.index_bits);})()");
 console.log('in-browser verifyMember (path -> root):', consistent);
 await snap('create-screen.png');
 console.log('console errors:', errs.length?errs.slice(0,6).join(' | '):'NONE');

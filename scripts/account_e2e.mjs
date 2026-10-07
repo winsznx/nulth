@@ -24,7 +24,7 @@ for(let i=0;i<30;i++){ if(await ev('App.live.loading')===false) break; await sle
 await ev("App.nav('account')"); await sleep(500);
 
 console.log('=== live governance reads ===');
-console.log(await ev('JSON.stringify({frozen:App.live.policy&&App.live.policy.frozen,onAdmin:App.live.policy&&App.live.policy.admin,hasAdminKey:CovenantChain.hasAdminKey(),keyMatch:CovenantChain.adminPublicKey()===(App.live.policy&&App.live.policy.admin),cannotMoveFundsCopy:document.body.innerText.includes("cannot move funds")})'));
+console.log(await ev('JSON.stringify({frozen:App.live.policy&&App.live.policy.frozen,onAdmin:App.live.policy&&App.live.policy.admin,hasAdminKey:NulthChain.hasAdminKey(),keyMatch:NulthChain.adminPublicKey()===(App.live.policy&&App.live.policy.admin),cannotMoveFundsCopy:document.body.innerText.includes("cannot move funds")})'));
 await snap('account-live.png');
 
 async function adminAction(action){

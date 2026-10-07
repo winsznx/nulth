@@ -50,7 +50,7 @@ const cmd = (method, params = {}) => new Promise((r) => { const i = ++id; pendin
 
 await cmd('Runtime.enable');
 await cmd('Performance.enable');
-const evalExpr = `new Promise((res)=>{const i=setInterval(()=>{if(window.__COVENANT_RESULT__){clearInterval(i);res(window.__COVENANT_RESULT__)}},200);setTimeout(()=>{clearInterval(i);res(window.__COVENANT_RESULT__||{timeout:true})},180000)})`;
+const evalExpr = `new Promise((res)=>{const i=setInterval(()=>{if(window.__NULTH_RESULT__){clearInterval(i);res(window.__NULTH_RESULT__)}},200);setTimeout(()=>{clearInterval(i);res(window.__NULTH_RESULT__||{timeout:true})},180000)})`;
 const evalRes = await cmd('Runtime.evaluate', { expression: evalExpr, awaitPromise: true, returnByValue: true });
 const result = evalRes.result?.result?.value ?? evalRes.result?.value;
 const metrics = await cmd('Performance.getMetrics');

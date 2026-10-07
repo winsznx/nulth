@@ -35,8 +35,8 @@ for(let i=0;i<30;i++){ if(await ev('window.App && App.live && App.live.loading')
 await sleep(1200);
 
 const out={ url:URL };
-out.demoPayee = await ev('window.COVENANT && COVENANT.demoPayee');
-out.chainDump = JSON.parse(await ev(`JSON.stringify({hasRelayer:!!(CovenantChain&&CovenantChain.hasRelayer), relay:(CovenantChain._relay||null), balance:String(App.live.balance)})`)||'{}');
+out.demoPayee = await ev('window.NULTH && NULTH.demoPayee');
+out.chainDump = JSON.parse(await ev(`JSON.stringify({hasRelayer:!!(NulthChain&&NulthChain.hasRelayer), relay:(NulthChain._relay||null), balance:String(App.live.balance)})`)||'{}');
 
 // ---- AGENT PAY ----
 await ev(`App.nav('agent')`); await sleep(500);
@@ -46,7 +46,7 @@ out.agentThreadFull = JSON.parse(await ev(`JSON.stringify(App.agent.thread)`)||'
 
 // ---- MANUAL PAY ----
 await ev(`App.nav('pay')`); await sleep(500);
-await ev(`App.state.payDest=COVENANT.demoPayee; App.state.payAmount='1';`);
+await ev(`App.state.payDest=NULTH.demoPayee; App.state.payAmount='1';`);
 await ev(`App.runPay()`);
 for(let i=0;i<30;i++){ const ph=await ev('App.pay && App.pay.phase'); if(ph!=='running'&&ph!=='proving'&&i>1) break; await sleep(1500); }
 out.payState = JSON.parse(await ev(`JSON.stringify({phase:App.pay.phase, step:App.pay.step, error:App.pay.error||null, refusedReason:App.pay.refusedReason||null})`)||'{}');

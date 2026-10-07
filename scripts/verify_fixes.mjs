@@ -18,7 +18,7 @@ await cmd('Page.navigate',{url:B+'/'}); await sleep(2500);
 for(let i=0;i<30;i++){ if(await ev('window.App&&App.live&&App.live.loading')===false) break; await sleep(700); }
 
 // ---- ATTACK DECK: run every mode, confirm rejected (not TypeError) ----
-const modes = JSON.parse(await ev('JSON.stringify(Object.keys(window.CovenantAttacks.SPEC))') || '[]');
+const modes = JSON.parse(await ev('JSON.stringify(Object.keys(window.NulthAttacks.SPEC))') || '[]');
 console.log('attack modes:', modes.join(', '));
 await ev("App.nav('breaking')"); await sleep(500);
 const attackResults = {};

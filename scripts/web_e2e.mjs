@@ -26,7 +26,7 @@ await cmd('Emulation.setDeviceMetricsOverride',{width:1280,height:860,deviceScal
 await cmd('Page.navigate',{url:`http://localhost:${PORT}/`}); await sleep(1500);
 
 console.log('=== globals ===');
-console.log(await ev('JSON.stringify({Buffer:typeof window.Buffer,SDK:typeof window.StellarSdk,rpc:typeof (window.StellarSdk&&StellarSdk.rpc),snarkjs:typeof window.snarkjs,ser:typeof window.CovenantSerialize,chain:typeof window.CovenantChain,prover:typeof window.CovenantProver,opKey:window.CovenantChain&&CovenantChain.hasOperatorKey()})'));
+console.log(await ev('JSON.stringify({Buffer:typeof window.Buffer,SDK:typeof window.StellarSdk,rpc:typeof (window.StellarSdk&&StellarSdk.rpc),snarkjs:typeof window.snarkjs,ser:typeof window.NulthSerialize,chain:typeof window.NulthChain,prover:typeof window.NulthProver,opKey:window.NulthChain&&NulthChain.hasOperatorKey()})'));
 
 console.log('=== wait for live reads ===');
 for(let i=0;i<30;i++){ const loading=await ev('App.live.loading'); if(loading===false) break; await sleep(700); }
@@ -40,7 +40,7 @@ await ev("App.nav('dashboard')"); await sleep(300);
 
 console.log('=== VALID payment (browser proof -> chain) ===');
 await ev("App.nav('pay')"); await sleep(500);
-await ev("(function(){document.getElementById('pay-amount').value='1';document.getElementById('pay-dest').value=window.COVENANT.demoPayee;return true;})()");
+await ev("(function(){document.getElementById('pay-amount').value='1';document.getElementById('pay-dest').value=window.NULTH.demoPayee;return true;})()");
 await ev('App.runPay()'); // fire (don't await; poll phase)
 for(let i=0;i<45;i++){ const ph=await ev('App.pay.phase'); if(ph==='done'||ph==='refused'||ph==='error'){console.log('phase:',ph);break;} await sleep(1500); }
 console.log(await ev('JSON.stringify({phase:App.pay.phase,hash:App.pay.result&&App.pay.result.hash,status:App.pay.result&&App.pay.result.status,proveMs:App.pay.result&&App.pay.result.proveMs,instr:App.pay.result&&App.pay.result.declaredInstr,beforeAcc:App.pay.before&&String(App.pay.before.acc),afterAcc:App.pay.after&&String(App.pay.after.acc),beforePayee:App.pay.before&&String(App.pay.before.payee),afterPayee:App.pay.after&&String(App.pay.after.payee),err:App.pay.error})'));
@@ -49,7 +49,7 @@ await snap('e2e-pay-success.png');
 console.log('=== OUT-OF-POLICY refusal (no tx) ===');
 await ev("App.dispatch('payreset')"); await sleep(300);
 await ev("App.nav('pay')"); await sleep(400);
-await ev("(function(){document.getElementById('pay-amount').value='1';document.getElementById('pay-dest').value=window.COVENANT.demoNonAllowlisted;return true;})()");
+await ev("(function(){document.getElementById('pay-amount').value='1';document.getElementById('pay-dest').value=window.NULTH.demoNonAllowlisted;return true;})()");
 await ev('App.runPay()');
 for(let i=0;i<20;i++){ const ph=await ev('App.pay.phase'); if(ph==='refused'||ph==='error'||ph==='done'){console.log('phase:',ph);break;} await sleep(1000); }
 console.log(await ev('JSON.stringify({phase:App.pay.phase,reason:App.pay.refusedReason,err:App.pay.error})'));

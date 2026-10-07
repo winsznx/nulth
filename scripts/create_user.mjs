@@ -1,5 +1,5 @@
 // SELF-SERVE PROOF: a brand-new user (fresh keypair, NOT the demo admin) creates and uses their
-// OWN Covenant account on real testnet. Same logic the browser create flow runs (client-side
+// OWN Nulth account on real testnet. Same logic the browser create flow runs (client-side
 // policy + createCustomContract against the SHARED verifier/wasm). No mocks.
 //
 //   1. fresh user keypair (the admin of the new account) + a fresh allowlisted payee (own policy)
@@ -124,11 +124,20 @@ out.policy = { cap: USER_CAP, commitment: pol.commitment, root: pol.root };
 console.log('commitment:', pol.commitment.slice(0, 18) + '… root:', pol.root.slice(0, 18) + '…');
 
 console.log('=== 3. deploy a FRESH account (createContractV2 -> shared wasm + constructor) ===');
+// 8-arg constructor: vk, commitment, root, USDC, admin, epoch_ledgers, epoch_cap, rotation_delay.
+const EPOCH_LEDGERS = Number(process.env.EPOCH_LEDGERS || 17280);        // ~1 day window
+const EPOCH_CAP = (BigInt(USER_CAP) * BigInt(process.env.EPOCH_CAP_MULT || 10)).toString();
+const ROTATION_DELAY = Number(process.env.ROTATION_DELAY || 12);        // ~1 min rotation timelock
 const deployOp = SDK.Operation.createCustomContract({
   address: SDK.Address.fromString(user.publicKey()),
   wasmHash: Buffer.from(WASM_HASH, 'hex'),
   salt: crypto.randomBytes(32),
-  constructorArgs: [vkScVal(vk, 'c1c0'), u256ScVal(pol.commitment), u256ScVal(pol.root), addr(USDC), addr(user.publicKey())],
+  constructorArgs: [
+    vkScVal(vk, 'c1c0'), u256ScVal(pol.commitment), u256ScVal(pol.root), addr(USDC), addr(user.publicKey()),
+    SDK.nativeToScVal(EPOCH_LEDGERS, { type: 'u32' }),
+    SDK.nativeToScVal(BigInt(EPOCH_CAP), { type: 'i128' }),
+    SDK.nativeToScVal(ROTATION_DELAY, { type: 'u32' }),
+  ],
 });
 const dep = await submit(user, deployOp, '20000000');
 const newId = SDK.scValToNative(dep.retval);

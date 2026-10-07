@@ -1,4 +1,4 @@
-// Initialize the Covenant account: store vk + policy_commitment + allowlist_root.
+// Initialize the Nulth account: store vk + policy_commitment + allowlist_root.
 import * as SDK from '@stellar/stellar-sdk';
 import fs from 'fs';
 import { vkScVal, u256ScVal } from './lib.mjs';

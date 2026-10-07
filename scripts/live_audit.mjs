@@ -51,9 +51,9 @@ out.chain = JSON.parse(await ev(`JSON.stringify({
   hasSecret:!!App.live.secret, hasPolicy:!!App.live.policy,
   balance:(App.live.balance!==undefined?String(App.live.balance):null),
   activityN:(App.live.activity&&App.live.activity.length)||0,
-  hasRelayer:!!(window.CovenantChain&&CovenantChain.hasRelayer),
-  hasOperatorKey:!!(window.CovenantChain&&CovenantChain.hasOperatorKey&&CovenantChain.hasOperatorKey()),
-  hasAdminKey:!!(window.CovenantChain&&CovenantChain.hasAdminKey&&CovenantChain.hasAdminKey())
+  hasRelayer:!!(window.NulthChain&&NulthChain.hasRelayer),
+  hasOperatorKey:!!(window.NulthChain&&NulthChain.hasOperatorKey&&NulthChain.hasOperatorKey()),
+  hasAdminKey:!!(window.NulthChain&&NulthChain.hasAdminKey&&NulthChain.hasAdminKey())
 })`) || '{}');
 
 // per-view sweep

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Covenant end-to-end test suite — REAL testnet, no mocks.
+# Nulth end-to-end test suite — REAL testnet, no mocks.
 # Prereqs: web/policy_secret.json + circuit artifacts present; web/secrets.local.js set
 # (operator fee-payer); for the agent leg, the agent server must be running:
 #   SECRET=$(stellar keys show agent-key) node scripts/agent_server.mjs &
@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 export SECRET=$(stellar keys show agent-key 2>/dev/null)
 
 echo "==================== CARGO (contract) ===================="
-(cd contracts && cargo test -p covenant-account 2>&1 | grep -E "running [0-9]+ tests|test result:")
+(cd contracts && cargo test -p nulth-account 2>&1 | grep -E "running [0-9]+ tests|test result:")
 
 echo "==================== CIRCUITS (snarkjs) ===================="
 node scripts/test_circuits.mjs 2>&1 | grep -E "PASS|FAIL|circuit tests:"
