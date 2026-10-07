@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["verifier", "covenant_account"]
+members = ["verifier", "nulth_account"]
 
 [profile.release]
 opt-level = "z"
