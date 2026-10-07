@@ -31,7 +31,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // self-healing demo float: every payout moves USDC account -> payee; this recycles it back so
 // the demo account never drains during a live investor session. Testnet-only, testnet-value key.
-const DEMO_ACCOUNT = process.env.NULTH_ACCOUNT || 'CANA5QYVHNON7AV752ZRATFW2T5BMS3MU5DDPJMU5UGSR3KSH45LOGZE';
+const DEMO_ACCOUNT = process.env.NULTH_ACCOUNT || 'CAKSFFBTLDMHS4BH4ABTUVNN3WN5XO3WYIRD4ZNXELDXN5GGBNA77QQW';
 const payee = process.env.PAYEE_SECRET ? SDK.Keypair.fromSecret(process.env.PAYEE_SECRET) : null;
 const SWEEP_MIN = BigInt(Math.round(Number(process.env.SWEEP_MIN_USDC || '5') * 1e7));
 const SWEEP_MS = Number(process.env.SWEEP_INTERVAL_MS || 120_000);
@@ -86,7 +86,7 @@ const SEC_HEADERS = {
 };
 
 // ---- helpers ----
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.map': 'application/json' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.map': 'application/json', '.pdf': 'application/pdf' };
 function send(res, code, body, headers = {}) {
   const h = { ...SEC_HEADERS, 'access-control-allow-headers': 'content-type, authorization', ...headers };
   if (res._cors) h['access-control-allow-origin'] = res._cors; // reflect only same-origin; cross-origin gets no ACAO
@@ -106,7 +106,7 @@ async function handleRelay(req, res, ip) {
   try { body = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: 'bad_json' }); }
   const { account, to, amount, authEntryXdr } = body || {};
 
-  // strict validation — the relayer only ever builds a USDC transfer from a covenant (contract) account
+  // strict validation — the relayer only ever builds a USDC transfer from a nulth (contract) account
   if (!account || !SDK.StrKey.isValidContract(account)) return json(res, 400, { error: 'bad_account' });
   if (!to || !(SDK.StrKey.isValidEd25519PublicKey(to) || SDK.StrKey.isValidContract(to))) return json(res, 400, { error: 'bad_destination' });
   if (!/^[0-9]+$/.test(String(amount)) || BigInt(amount) <= 0n || BigInt(amount) >= (1n << 100n)) return json(res, 400, { error: 'bad_amount' });
