@@ -25,3 +25,6 @@ waitlist.jsonl
 .claude
 .codex
 .stellar
+
+# agent/skill tooling (local, like .claude and .codex)
+.agents
