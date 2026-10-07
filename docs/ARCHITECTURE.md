@@ -58,9 +58,9 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
 
 ## 4. `__check_auth` — state machine, happy path, every failure state
 
-**Atomic construction (no uninit window).** `__constructor(vk, policy_commitment, allowlist_root, token, admin)` (`lib.rs:109–127`) sets `VK · POL · ROOT · TOKEN · ADMIN`, sets `FROZEN=false`, and emits an `init` event — all in the deploy transaction. It rejects a malformed verification key at construction: `vk.ic.len() != N_PUBLIC + 1` (i.e. `!= 7`) → **`MalformedVk` (#14)**.
+**Atomic construction (no uninit window).** `__constructor(vk, policy_commitment, allowlist_root, token, admin, epoch_ledgers, epoch_cap, rotation_delay_ledgers)` (`lib.rs:156–195`) sets `VK · POL · ROOT · TOKEN · ADMIN`, the epoch budget (`EPOCHLEN · EPOCHCAP · EPOCHANC · EPOCHSPT`) and the rotation timelock (`ROTDELAY`), sets `FROZEN=false`, and emits an `init` event — all in the deploy transaction. It rejects a malformed verification key at construction: `vk.ic.len() != N_PUBLIC + 1` (i.e. `!= 7`) → **`MalformedVk` (#14)**, and a degenerate budget or timelock (`epoch_ledgers == 0`, `epoch_cap <= 0`, `epoch_cap >= 2^100`, `rotation_delay_ledgers == 0`) → **`BadEpochConfig` (#23)**.
 
-**Happy path / gate order** (`lib.rs:233–335`) — a payment authorizes iff *every* gate passes, in this order:
+**Happy path / gate order** (`lib.rs:345–483`) — a payment authorizes iff *every* gate passes, in this order:
 
 0. load `VK/POL/ROOT/TOKEN` (absent ⇒ `NotInit #1`)
 1. **frozen gate, before any binding/pairing work** — `FROZEN` ⇒ `AccountFrozen #17`
@@ -77,7 +77,7 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
 12. **rolling epoch budget** — `spent_in_window + amount ≤ EPOCH_CAP` (window rolls every `EPOCH_LEDGERS`) ⇒ else `EpochCapExceeded #20`
 13. **native Groth16 pairing** verifies against the stored VK ⇒ else `BadProof #3`; on success the epoch counter is committed → **`Ok(())`**
 
-**Full error surface** (`#[contracterror] enum AccError`, `lib.rs:38–59`):
+**Full error surface** (`#[contracterror] enum AccError`, `lib.rs:50–79`):
 
 | # | Code | Triggered when |
 |---|---|---|
@@ -98,10 +98,10 @@ Nulth is the first Stellar account whose **signature is a zero-knowledge proof**
 | 15 | `NoContext` | empty context set (would be a blanket approval) |
 | 16 | `TooManyContexts` | more than one context (would be an N-fold spend) |
 | 17 | `AccountFrozen` | admin has frozen the account (gate #1, before pairing) |
-| 18 | `Unauthorized` | **reserved** — non-admin governance calls are rejected by `admin.require_auth()` (host-enforced) before any body runs, so this code is never returned in practice (`lib.rs:56–58`) |
+| 18 | `Unauthorized` | **reserved** — non-admin governance calls are rejected by `admin.require_auth()` (host-enforced) before any body runs, so this code is never returned in practice (`lib.rs:73`) |
 | 19 | `ZeroAmount` | `amount == 0` (zero-value transfer refused; policy is `0 < amount`) |
 | 20 | `EpochCapExceeded` | cumulative spend in the current window + `amount` would exceed `EPOCH_CAP` |
-| 21 | `NoPendingRotation` | `execute_rotation`/`cancel` with no staged rotation |
+| 21 | `NoPendingRotation` | `execute_rotation` with no staged rotation |
 | 22 | `RotationLocked` | `execute_rotation` before the `rotation_delay` timelock elapses |
 | 23 | `BadEpochConfig` | constructor given a degenerate budget/timelock (`epoch_ledgers==0`, `epoch_cap<=0`, or `rotation_delay==0`) |
 
@@ -109,7 +109,7 @@ Live, the host collapses every `__check_auth` failure to `Error(Auth, InvalidAct
 
 ## 5. Replay design (bounded, correct — no hand-rolled nullifier)
 
-Replay is closed by **two composed properties** (`lib.rs:17–18, 267–271`):
+Replay is closed by **two composed properties** (`lib.rs:18–20, 379–388`):
 
 1. **`signature_payload` binding (in-proof).** The circuit takes `sigpayload_hi/lo` as public inputs — the two 128-bit halves of the host's `signature_payload` for this auth entry, i.e. `sha256(xdr(HashIdPreimage::SorobanAuthorization{ networkId, nonce, signatureExpirationLedger, invocation }))`. Gate #4 checks these halves equal the *actual* payload of the invocation being authorized. A proof is therefore **non-transferable** and bound to exactly one `(account, nonce, invocation)`.
 2. **Host-native nonce consumption.** Soroban's auth framework consumes each `(address, nonce)` **once, on a successful** apply. There is **no hand-rolled nullifier storage** in the contract.
@@ -149,11 +149,11 @@ In-browser proving (the client-side step, not the on-chain verify): **~0.7–0.9
 |---|---|---|
 | Template / depth | `PaymentPolicy(16)` → **DEPTH-16** | `policy.circom:85` |
 | Allowlist capacity | **65,536** leaves (2^16) | `policy.circom` DEPTH=16; `web/config.js slots: '65,536'` |
-| Public inputs | **6** → `[amount, dest, policy_commitment, allowlist_root, sigpayload_hi, sigpayload_lo]` | `policy.circom:85`; `lib.rs:98 N_PUBLIC=6` |
-| VK `ic` length | **7** (`ic[0]` + one per public input) | `lib.rs:97` |
+| Public inputs | **6** → `[amount, dest, policy_commitment, allowlist_root, sigpayload_hi, sigpayload_lo]` | `policy.circom:85`; `lib.rs:147 N_PUBLIC=6` |
+| VK `ic` length | **7** (`ic[0]` + one per public input) | `lib.rs:171` |
 | Constraints | **9,402** (4,736 non-linear + 4,666 linear) | REPORT_DEPTH16.md §A |
 | Trusted setup | Hermez `powersOfTau28_hez_final_15` (2^15) | REPORT_DEPTH16.md §B |
-| Amount range | `Num2Bits(100)` → amount < 2^100 (matched in-contract, `lib.rs:100`) | `policy.circom:54`, `lib.rs:100` |
+| Amount range | `Num2Bits(100)` → amount < 2^100 (matched in-contract, `lib.rs:442`) | `policy.circom:54`, `lib.rs:149,442` |
 
 **Test surface:** `cargo test -p nulth-account` → **42 / 42** (`web/config.js tests`, REPORT_GOVERNANCE.md); circuit golden/abort tests → **7 / 7** (`scripts/test_circuits.mjs`); **5** headless real-testnet e2e drivers (`web_e2e`, `disc_e2e`, `deck_e2e`, `agent_e2e`, `account_e2e`).
 
@@ -169,11 +169,11 @@ This file is the spine; it is deliberately not a monolith.
 ## 9. Provenance — where each value came from (and what could not be sourced)
 
 Sourced from the repository (cited inline above):
-- **Error codes 1–18** — `contracts/nulth_account/src/lib.rs:38–59` (verbatim enum). Reachability verified by grep: every code is returned at ≥1 site **except** `AlreadyInit` (#2) and `Unauthorized` (#18), which are **reserved (0 refs)** — #2 because the constructor is host-enforced single-shot, #18 because non-admin governance calls are rejected by `admin.require_auth()` before any body runs.
-- **`__check_auth` gate order + bindings** — `lib.rs:233–335`; atomic constructor — `lib.rs:109–127`.
-- **Replay design** — `lib.rs:17–18` (module doc) + `lib.rs:262–271` (policy + sigpayload binding).
+- **Error codes 1–23** — `contracts/nulth_account/src/lib.rs:50–79` (verbatim enum). Reachability verified by grep: every code is returned at ≥1 site **except** `AlreadyInit` (#2) and `Unauthorized` (#18), which are **reserved (0 refs)** — #2 because the constructor is host-enforced single-shot, #18 because non-admin governance calls are rejected by `admin.require_auth()` before any body runs.
+- **`__check_auth` gate order + bindings** — `lib.rs:345–483`; atomic constructor — `lib.rs:156–195`.
+- **Replay design** — `lib.rs:18–20` (module doc) + `lib.rs:379–388` (policy + sigpayload binding).
 - **Contract IDs, admin, WASM hash, USDC SAC/issuer, deploy txs** — `web/config.js` and `build/deployed_p2.json` (identical values cross-checked).
-- **Circuit params** (DEPTH-16, 65,536, 6 public inputs, `ic`=7, range 2^100) — `circuits/policy.circom:48–85` + `lib.rs:97–100`.
+- **Circuit params** (DEPTH-16, 65,536, 6 public inputs, `ic`=7, range 2^100) — `circuits/policy.circom:48–85` + `lib.rs:147–149`.
 - **Constraint count (9,402 = 4,736 + 4,666), ptau 2^15, ~865 ms browser prove** — REPORT_DEPTH16.md §A/§B/§H.
 - **Verify cost 34,149,591 = 8.537% (constant, Δ=0 across depth)** — REPORT_DEPTH16.md §F + `web/config.js`.
 - **Live total ≈34,254,340 / ≈8.56% on a first receive** — REPORT_CREATE_FLOW.md / REPORT_POLISH.md (measured this session).

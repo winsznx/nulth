@@ -36,7 +36,7 @@ All four must hold simultaneously. A forged witness requires knowing `(cap, salt
 
 ## 2. `__check_auth` gate order
 
-Every invocation passes **11** sequential guards (after loading `vk`, `policy_commitment`,
+Every invocation passes **12** sequential guards (after loading `vk`, `policy_commitment`,
 `allowlist_root`, `token`). Earlier guards return cheap, specific error codes; the Groth16 pairing check
 runs last. The full step-by-step enumeration is in **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) §4**.
 
@@ -49,9 +49,10 @@ runs last. The full step-by-step enumeration is in **[docs/ARCHITECTURE.md](./do
 6.  fn_name == "transfer"  → BadContext            #7
 7.  ctx.contract == token  → BadTokenBinding       #10
 8.  ctx.args.from == self  → BadFromBinding        #11
-9.  0 < amount < 2¹⁰⁰     → NegativeAmount #9 / AmountTooLarge #12
+9.  0 < amount < 2¹⁰⁰     → NegativeAmount #9 / ZeroAmount #19 / AmountTooLarge #12
 10. signals[0,1] == args   → BadAmountBinding #5 / BadDestBinding #6
-11. Groth16 verify         → BadProof              #3
+11. epoch spent+amount ≤ cap → EpochCapExceeded #20
+12. Groth16 verify         → BadProof              #3
 ```
 
 The enum declares 23 variants, but **two are reserved and never returned**: `AlreadyInit` (#2) — the
